@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# full pipeline, each stage skips if its output exists (use --force on a stage to redo)
+set -euo pipefail
+cd "$(dirname "$0")"
+PY=${PY:-python}
+run() { echo "== $*"; local t=$SECONDS; $PY -m ber.cli "$@"; echo "   wall $((SECONDS - t))s"; }
+run normalize --split train
+run normalize --split test
+run folds
+run block --split train
+run block --split test
+run blockreport --split train
+run features --split train
+run features --split test
+run train
+run predict --split test
+run decode
+run report
+run write

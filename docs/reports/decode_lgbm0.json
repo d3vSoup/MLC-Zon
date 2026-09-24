@@ -1,0 +1,17 @@
+{
+ "tau": 0.63,
+ "best_tau": 0.63,
+ "best": 0.88909,
+ "plateau": [
+  0.56,
+  0.7
+ ],
+ "all_empty": 0.05585,
+ "pc_after_block": 0.96541,
+ "oof": {
+  "overall": 0.88909,
+  "singleton_only": 0.73553,
+  "US": 0.89154,
+  "India": 0.88541
+ }
+}

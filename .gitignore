@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+student_resource/dataset/
+student_resource/work/
+student_resource/output/*.tsv
+*.zip
+.env
