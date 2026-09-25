@@ -107,8 +107,8 @@ def round2(r1_path, src, ctry_of, tag, rounds):
     return name
 
 
-# decode with calibration + gate + decoder fitted on the source country only; score the target country
-def evaluate(name, src, tag):
+# calibration + gate fitted on the source country only; returns owned pairs (with q), info, gate, source mask
+def prepare(name, src):
     D.NAME = name
     d, info = D.owned("train")
     n = len(info["keys"])
@@ -135,6 +135,15 @@ def evaluate(name, src, tag):
         gate[v] = m.predict(g.loc[v, D.GATE_FEATS])
         gm.append(m)
     gate[~is_src] = np.mean([m.predict(g.loc[~is_src, D.GATE_FEATS]) for m in gm], axis=0)
+    return d, info, gate, is_src
+
+
+# decode with calibration + gate + decoder fitted on the source country only; score the target country
+def evaluate(name, src, tag):
+    d, info, gate, is_src = prepare(name, src)
+    n = len(info["keys"])
+    code = d["code"].values
+    rs = is_src[code]
     mask = D.expf_mask(d, n, gate)
     k_, t_, f_ = D.score(d, info, mask)
     L = buckets(k_, t_, info["G"], info["g_cand"])

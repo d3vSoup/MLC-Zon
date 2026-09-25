@@ -1,0 +1,96 @@
+{
+ "fit us2in -> eval in2us": {
+  "none": {
+   "F0.5": 0.95463,
+   "singleton_only": 0.87746,
+   "precision": 0.9718,
+   "pred_pairs": 4430889
+  },
+  "temper": {
+   "F0.5": 0.95528,
+   "singleton_only": 0.8766,
+   "precision": 0.9792,
+   "pred_pairs": 4306395,
+   "q_params": [
+    0.4715,
+    -0.091
+   ],
+   "gate_params": [
+    0.5691,
+    0.1218
+   ]
+  },
+  "temper_q_only": {
+   "F0.5": 0.9555,
+   "singleton_only": 0.88282,
+   "precision": 0.9794,
+   "pred_pairs": 4305362
+  },
+  "isotonic": {
+   "F0.5": 0.95521,
+   "singleton_only": 0.86404,
+   "precision": 0.9762,
+   "pred_pairs": 4360511,
+   "q_params": "isotonic",
+   "gate_params": "isotonic"
+  },
+  "isotonic_q_only": {
+   "F0.5": 0.95564,
+   "singleton_only": 0.87905,
+   "precision": 0.9766,
+   "pred_pairs": 4358246
+  }
+ },
+ "fit in2us -> eval us2in": {
+  "none": {
+   "F0.5": 0.90438,
+   "singleton_only": 0.74402,
+   "precision": 0.941,
+   "pred_pairs": 2896999
+  },
+  "temper": {
+   "F0.5": 0.90445,
+   "singleton_only": 0.78677,
+   "precision": 0.9515,
+   "pred_pairs": 2783263,
+   "q_params": [
+    0.692,
+    -0.3992
+   ],
+   "gate_params": [
+    0.7794,
+    -0.4864
+   ]
+  },
+  "temper_q_only": {
+   "F0.5": 0.90494,
+   "singleton_only": 0.76349,
+   "precision": 0.951,
+   "pred_pairs": 2787096
+  },
+  "isotonic": {
+   "F0.5": 0.9049,
+   "singleton_only": 0.78067,
+   "precision": 0.9498,
+   "pred_pairs": 2804819,
+   "q_params": "isotonic",
+   "gate_params": "isotonic"
+  },
+  "isotonic_q_only": {
+   "F0.5": 0.90515,
+   "singleton_only": 0.7615,
+   "precision": 0.9494,
+   "pred_pairs": 2807689
+  }
+ },
+ "pooled_temper_params": {
+  "q": [
+   0.571,
+   -0.2372
+  ],
+  "gate": [
+   0.6662,
+   -0.1763
+  ]
+ }
+}

@@ -257,13 +257,21 @@ def run(force=False):
 
 
 # apply the chosen decoder to test; write both TSVs (or only matching into out_dir, candidates reused); validator
-def write(force=False, out_dir=None):
+def write(force=False, out_dir=None, unseen=None):
     cfg = json.load(open(work("reports", f"decode_{NAME}.json")))
     best, par = cfg["chosen"], cfg["decoders"][cfg["chosen"]]
     d, info = owned("test")
     n = len(info["keys"])
     d["q"] = pickle.load(open(work("models", f"iso_{NAME}.pkl"), "rb")).predict(d["p"].values)
     gate = gate_test(gate_frame(d, info, "test"))
+    if unseen:  # tempering learned only from leave-one-country-out; only for countries absent from train
+        seen = set(read_tsv(source_file("train", 1), usecols=["country"])["country"])
+        new = ~pd.Series(info["country"]).isin(seen).values
+        rows = new[d["code"].values]
+        t = lambda x, a, b: 1 / (1 + np.exp(-(a * np.log(np.clip(x, 1e-6, 1 - 1e-6) / (1 - np.clip(x, 1e-6, 1 - 1e-6))) + b)))
+        d.loc[rows, "q"] = t(d["q"].values[rows], *unseen["q"])
+        gate[new] = t(gate[new], *unseen["gate"])
+        print(f"unseen-country correction on {int(new.sum())} S1 ({sorted(set(info['country'][new]))}), params {unseen}")
     mask = {"single_tau": lambda: d["q"].values >= par.get("tau", 1),
             "gate_tau2": lambda: rule_mask(d, gate, par.get("tau_g"), par.get("tau_2")),
             "expf": lambda: expf_mask(d, n),
