@@ -30,26 +30,28 @@ def run(force=False):
         return
     fm = fold_map()
     labels = pq.read_table(work("train", "cands.parquet"), columns=["label"]).column("label").to_numpy()
-    parts, off = [], 0
-    for b in batches("train"):
-        d = b.to_pandas()
-        n = len(d)
-        d["label"] = labels[off:off + n]
-        off += n
-        d["fold"] = fm["fold"].reindex(d["s1"]).values
-        parts.append(d[fm["sampled"].reindex(d["s1"]).values].drop(columns=ID))
-    tr = pd.concat(parts, ignore_index=True)
-    del parts
-    feats = [c for c in tr.columns if c not in ID + ["label", "fold"]]
-    print(f"train rows {len(tr)} pos rate {tr.label.mean():.4f} feats {feats}")
-    fold = tr["fold"].values
+    feats = [c for c in pq.ParquetFile(work("train", "feats.parquet")).schema_arrow.names if c not in ID]
+    masks = [fm["sampled"].reindex(b.column("s1").to_numpy()).values for b in batches("train", ["s1"])]
+    # fill one pre-sized float32 matrix (no concat copy: 30M x 45 floats is ~5 GB)
+    X = np.empty((sum(int(m.sum()) for m in masks), len(feats)), np.float32)
+    y, fold = np.empty(len(X), np.int8), np.empty(len(X), np.int8)
+    off = row = 0
+    for m, b in zip(masks, batches("train", ["s1"] + feats)):
+        k = int(m.sum())
+        X[row:row + k] = b.select(feats).to_pandas().to_numpy(np.float32)[m]
+        y[row:row + k] = labels[off:off + len(m)][m]
+        fold[row:row + k] = fm["fold"].reindex(b.column("s1").to_numpy()[m]).values
+        off += len(m)
+        row += k
+    del labels, masks
+    print(f"train rows {len(X)} pos rate {y.mean():.4f} feats {feats}", flush=True)
     p = CFG["lgbm"]
     params = {k: v for k, v in p.items() if k not in ("num_boost_round", "early_stopping", "test_models")}
     params.update(seed=CFG["seed"], deterministic=True, force_row_wise=True, num_threads=CFG["n_jobs"],
                   verbose=-1, metric="binary_logloss")
     # bin once, then per-fold subsets: no raw-data copies (RAM)
-    full = lgb.Dataset(tr[feats].astype(np.float32), tr["label"].values, params=params, free_raw_data=True).construct()
-    del tr
+    full = lgb.Dataset(X, y, feature_name=feats, params=params, free_raw_data=True).construct()
+    del X
     imp = []
     for k in range(CFG["n_folds"]):
         with timed(f"lgbm fold {k}"):

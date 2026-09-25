@@ -2,52 +2,52 @@
  "chosen": "expf_gate",
  "decoders": {
   "single_tau": {
-   "tau": 0.67,
+   "tau": 0.68,
    "oof": {
-    "overall": 0.92606,
-    "singleton_only": 0.83172,
-    "US": 0.93407,
-    "India": 0.91406,
-    "fold_std": 0.00015
+    "overall": 0.97078,
+    "singleton_only": 0.95967,
+    "US": 0.97435,
+    "India": 0.96543,
+    "fold_std": 0.00017
    }
   },
   "gate_tau2": {
-   "tau_g": 0.55,
-   "tau_2": 0.67,
-   "grid_best": 0.92886,
+   "tau_g": 0.59,
+   "tau_2": 0.69,
+   "grid_best": 0.97128,
    "plateau_tau_g": [
     0.35,
-    0.76
+    0.85
    ],
    "plateau_tau_2": [
-    0.57,
-    0.76
+    0.49,
+    0.87
    ],
-   "fold_best_tau_g_std": 0.019,
-   "fold_best_tau_2_std": 0.0049,
+   "fold_best_tau_g_std": 0.0228,
+   "fold_best_tau_2_std": 0.0098,
    "oof": {
-    "overall": 0.92886,
-    "singleton_only": 0.88507,
-    "US": 0.93722,
-    "India": 0.91632,
-    "fold_std": 0.00021
+    "overall": 0.97124,
+    "singleton_only": 0.97077,
+    "US": 0.97482,
+    "India": 0.96587,
+    "fold_std": 0.00012
    }
   },
   "expf": {
    "oof": {
-    "overall": 0.92666,
-    "singleton_only": 0.71704,
-    "US": 0.93495,
-    "India": 0.91424,
+    "overall": 0.97037,
+    "singleton_only": 0.92302,
+    "US": 0.97389,
+    "India": 0.9651,
     "fold_std": 0.00011
    }
   },
   "expf_gate": {
    "oof": {
-    "overall": 0.93049,
-    "singleton_only": 0.81244,
-    "US": 0.93925,
-    "India": 0.91737,
+    "overall": 0.97147,
+    "singleton_only": 0.95224,
+    "US": 0.97504,
+    "India": 0.96611,
     "fold_std": 0.00011
    }
   }
