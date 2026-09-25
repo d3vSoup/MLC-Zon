@@ -280,7 +280,7 @@ def write(force=False, out_dir=None, unseen=None):
     valid = np.concatenate([to_key(read_tsv(source_file("test", s), usecols=["entity_id"])["entity_id"])
                             for s in (2, 3)])
     s1m, candm = info["keys"][d["code"].values[mask]], d["cand"].values[mask]
-    out = Path(out_dir) if out_dir else path("output_dir")
+    out = Path(out_dir).resolve() if out_dir else path("output_dir")
     cand_file = path("output_dir") / "candidate_pairs.tsv"
     with timed("write tsvs"):
         if not out_dir:  # the candidate set never changes between decoders: candidates/ runs reuse output/'s file
