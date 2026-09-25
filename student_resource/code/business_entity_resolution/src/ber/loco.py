@@ -181,3 +181,50 @@ def run(direction):
 
 if __name__ == "__main__":
     run(sys.argv[1])
+
+
+# round-2 variant on an existing LOCO run: extra feature files and/or pseudo-labels on the unseen country
+def variant(direction, extra=(), pseudo=False, rounds=None):
+    src = {"us2in": "US", "in2us": "India"}[direction]
+    rounds = rounds or CFG["lgbm"]["num_boost_round"]
+    s1 = read_tsv(source_file("train", 1), usecols=["entity_id", "country"])
+    ctry_of = pd.Series(s1["country"].values, index=to_key(s1["entity_id"]))
+    d = pq.read_table(work("loco", direction, "r2.parquet")).to_pandas()
+    rows = d["row"].values
+    if extra:
+        from ber.features import names2, numbers
+        for e in extra:
+            f = work("loco", direction, f"{e}.parquet")
+            if not f.exists():
+                numbers.run("train", force=True, rows=rows, out=f) if e == "num" else names2.run("train", rows, f)
+            d = pd.concat([d, pq.read_table(f).to_pandas()], axis=1)
+    feats = [c for c in d.columns if c not in ("s1", "cand", "row", "label")]
+    is_src = ctry_of.reindex(d["s1"].values).values == src
+    fold = fold_map()["fold"].reindex(d["s1"].values).values
+    y = d["label"].values.copy()
+    train_rows = is_src.copy()
+    if pseudo:  # unseen side: confident round-2 predictions become labels (true labels never used there)
+        p_base = pq.read_table(work("preds", f"oof_loco_{direction}.parquet")).column("p").to_numpy()[rows]
+        pos, neg = ~is_src & (p_base > 0.95), ~is_src & (p_base < 0.02)
+        y[pos], y[neg] = 1, 0
+        train_rows |= pos | neg
+        print(f"pseudo-labels: {int(pos.sum())} pos, {int(neg.sum())} neg of {int((~is_src).sum())} unseen rows")
+    X = d[feats].to_numpy(np.float32)
+    p = params(rounds)
+    out = np.empty(len(d), np.float32)
+    full = lgb.Dataset(X[train_rows], y[train_rows], feature_name=feats, params=p, free_raw_data=False).construct()
+    tr_idx, f_tr = np.flatnonzero(train_rows), fold[train_rows]
+    models = []
+    for k in range(CFG["n_folds"]):  # folds by S1 across both countries: every row is predicted out-of-fold
+        t, v = full.subset(np.flatnonzero(f_tr != k)), full.subset(np.flatnonzero(f_tr == k))
+        m = lgb.train(p, t, rounds, valid_sets=[v], callbacks=[lgb.early_stopping(100, verbose=False)])
+        out[fold == k] = m.predict(X[fold == k], num_threads=CFG["n_jobs"])
+    t = pq.read_table(work("loco", direction, "oof_r1.parquet"))
+    pp = t.column("p").to_numpy().copy()
+    pp[rows] = out
+    tag = f"{direction}_{'_'.join(extra) or 'base'}{'_pseudo' if pseudo else ''}"
+    pq.write_table(t.set_column(2, "p", pa.array(pp)), work("preds", f"oof_loco_{tag}.parquet"))
+    res = evaluate(f"loco_{tag}", src, direction)
+    json.dump(res, open(work("reports", f"loco_{tag}.json"), "w"), indent=1)
+    print(tag, {k: {x: v[x] for x in ("F0.5", "singleton_only", "precision")} for k, v in res.items()})
+    work("preds", f"oof_loco_{tag}.parquet").unlink()
