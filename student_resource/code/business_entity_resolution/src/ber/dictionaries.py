@@ -76,3 +76,7 @@ ADDR_STOP = {"null", "cedex", "no", "number", "india", "usa", "us", "france"}
 # sound-alike skeleton: letter -> consonant class; vowels, h, w, y dropped (transliteration-robust)
 SKEL = {**{c: "1" for c in "bfpv"}, **{c: "2" for c in "cgjkqsxz"}, **{c: "3" for c in "dt"},
         "l": "4", "m": "5", "n": "5", "r": "6", **{c: "" for c in "aeiouhwy"}}
+
+# ---- v2 (round-2 name features only; normalization v1 unchanged) ----
+# multilingual function words: EN + FR (+ elided l'/d' become "l"/"d" after punctuation folding)
+NAME_STOP2 = {"and", "of", "de", "du", "la", "le", "les", "des", "et", "l", "d", "en", "a", "au", "aux"}

@@ -53,3 +53,6 @@ ce:                     # cross-encoder (xlm-roberta-base) data export; scored o
   band_rank: 3
   band_floor: 0.001     # drops 20M hopeless top-3 pairs: 31.1M -> 10.8M train pairs, error coverage 95.9% -> 95.8%
   cap: 600000           # training pairs per half (40% pos: half hardest; 60% neg: half hardest, quarter chain-name)
+
+names2:                 # round-2 name features on a v2 name form (dotted acronyms joined, legal + stopwords out)
+  generic_df: 0.001     # token in more than 0.1% of the split's S1 names = generic (data-driven, country-agnostic)
