@@ -14,6 +14,9 @@ run features --split train
 run features --split test
 run train
 run predict --split test
+run graph --split train
+run graph --split test
+run stack
 run decode
 run report
 run write

@@ -5,7 +5,8 @@ import importlib
 STAGES = {"eda": ("ber.eda", "run"), "normalize": ("ber.normalize", "run"), "folds": ("ber.folds", "run"),
           "block": ("ber.blocking.tfidf", "run"), "blockreport": ("ber.blocking.report", "run"),
           "features": ("ber.features.strings", "run"), "train": ("ber.models.lgbm", "run"),
-          "predict": ("ber.models.lgbm", "predict"), "decode": ("ber.decode", "run"),
+          "predict": ("ber.models.lgbm", "predict"), "graph": ("ber.features.graph", "run"),
+          "stack": ("ber.models.stack", "run"), "decode": ("ber.decode", "run"),
           "write": ("ber.decode", "write"), "report": ("ber.analysis", "run")}
 
 

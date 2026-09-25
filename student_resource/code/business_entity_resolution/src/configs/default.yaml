@@ -34,3 +34,13 @@ lgbm:
   num_boost_round: 1000   # dev cycles (1000->3000 at lr 0.1: logloss -2.6%, +~1.5 h/cycle); final run: 3000
   early_stopping: 100
   test_models: 1         # v0: 1 fold model (5-model mean costs ~100 min on CPU); same calibration as OOF
+
+round2:                 # group (graph) features + stacked model on hard pairs only
+  from_model: lgbm0     # round-1 preds used as input
+  name: lgbm1
+  hard_p: 0.01          # round 2 re-scores pairs with round-1 p >= this (9.8M of 153M train pairs); rest keep round-1 p
+  sure_p: 0.5           # siblings = records with p >= this on the same S1
+  max_sib: 20
+
+decode:
+  model: lgbm1          # which preds decode/write use

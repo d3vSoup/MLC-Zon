@@ -1,0 +1,57 @@
+{
+ "chosen": "expf_gate",
+ "decoders": {
+  "single_tau": {
+   "tau": 0.67,
+   "oof": {
+    "overall": 0.97607,
+    "singleton_only": 0.97847,
+    "US": 0.97893,
+    "India": 0.9718,
+    "fold_std": 0.00015
+   }
+  },
+  "gate_tau2": {
+   "tau_g": 0.59,
+   "tau_2": 0.71,
+   "grid_best": 0.97666,
+   "plateau_tau_g": [
+    0.35,
+    0.85
+   ],
+   "plateau_tau_2": [
+    0.51,
+    0.9
+   ],
+   "fold_best_tau_g_std": 0.0459,
+   "fold_best_tau_2_std": 0.0063,
+   "oof": {
+    "overall": 0.97663,
+    "singleton_only": 0.97435,
+    "US": 0.97954,
+    "India": 0.97229,
+    "fold_std": 0.0001
+   }
+  },
+  "expf": {
+   "oof": {
+    "overall": 0.97658,
+    "singleton_only": 0.96275,
+    "US": 0.97947,
+    "India": 0.97225,
+    "fold_std": 0.00012
+   }
+  },
+  "expf_gate": {
+   "oof": {
+    "overall": 0.9768,
+    "singleton_only": 0.96786,
+    "US": 0.97972,
+    "India": 0.97243,
+    "fold_std": 0.00011
+   }
+  }
+ },
+ "all_empty": 0.05585,
+ "pc_after_block": 0.98247
+}

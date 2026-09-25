@@ -9,7 +9,9 @@ from sklearn.isotonic import IsotonicRegression
 
 from ber.io import CFG, path, read_truth, read_tsv, source_file, timed, to_key, validate, work, write_id_lists
 from ber.metric import f05
-from ber.models.lgbm import NAME, fold_map
+from ber.models.lgbm import fold_map
+
+NAME = CFG["decode"]["model"]
 
 TAUS = np.round(np.arange(0.01, 1.0, 0.01), 2)
 TAU_G = np.round(np.arange(0.35, 0.851, 0.01), 2)

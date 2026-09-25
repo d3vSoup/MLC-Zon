@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 
-from ber.io import work
+from ber.io import CFG, work
 from ber.metric import f05
-from ber.models.lgbm import NAME
+
+NAME = CFG["decode"]["model"]
 
 BUCKETS = ["singleton_fp", "missed_entity", "wrong_top1", "blocking_miss", "extra_fp", "extra_fn"]
 
