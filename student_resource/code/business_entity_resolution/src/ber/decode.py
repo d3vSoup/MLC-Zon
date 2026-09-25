@@ -1,5 +1,7 @@
+import hashlib
 import json
 import pickle
+from pathlib import Path
 
 import lightgbm as lgb
 import numpy as np
@@ -254,8 +256,8 @@ def run(force=False):
                  country=info["country"])
 
 
-# apply the chosen decoder to test; write both TSVs; official validator
-def write(force=False):
+# apply the chosen decoder to test; write both TSVs (or only matching into out_dir, candidates reused); validator
+def write(force=False, out_dir=None):
     cfg = json.load(open(work("reports", f"decode_{NAME}.json")))
     best, par = cfg["chosen"], cfg["decoders"][cfg["chosen"]]
     d, info = owned("test")
@@ -270,10 +272,12 @@ def write(force=False):
     valid = np.concatenate([to_key(read_tsv(source_file("test", s), usecols=["entity_id"])["entity_id"])
                             for s in (2, 3)])
     s1m, candm = info["keys"][d["code"].values[mask]], d["cand"].values[mask]
-    out = path("output_dir")
+    out = Path(out_dir) if out_dir else path("output_dir")
+    cand_file = path("output_dir") / "candidate_pairs.tsv"
     with timed("write tsvs"):
-        write_id_lists(out / "candidate_pairs.tsv", "candidate_entity_ids", info["ids"],
-                       pr["s1"].values, pr["cand"].values, valid)
+        if not out_dir:  # the candidate set never changes between decoders: candidates/ runs reuse output/'s file
+            write_id_lists(cand_file, "candidate_entity_ids", info["ids"], pr["s1"].values, pr["cand"].values, valid)
+        assert not out_dir or out.resolve() != path("output_dir").resolve(), "candidates must never overwrite the fallback"
         write_id_lists(out / "matching_results.tsv", "matched_entity_ids", info["ids"], s1m, candm, valid)
     has = np.bincount(d["code"].values[mask], minlength=n) > 0
     print(f"decoder {best}; test pairs {len(pr)}, matched {mask.sum()}, S1 with a match {has.sum()}/{n}")
@@ -281,4 +285,13 @@ def write(force=False):
         m = info["country"] == c
         print(f"  {c}: empty share {1 - has[m].mean():.4f}, mean gate {gate[m].mean():.4f}, "
               f"mean top-1 q {np.bincount(d['code'].values[d['rank'].values == 0], d['q'].values[d['rank'].values == 0], n)[m].mean():.4f}")
-    validate(out / "matching_results.tsv", out / "candidate_pairs.tsv")
+    validate(out / "matching_results.tsv", cand_file)
+    stats = {"md5": hashlib.md5(open(out / "matching_results.tsv", "rb").read()).hexdigest(), "decoder": best,
+             "model": NAME, "oof": cfg["decoders"][best]["oof"]}
+    k = np.bincount(d["code"].values[mask], minlength=n)
+    for c in pd.unique(info["country"]):
+        m = info["country"] == c
+        stats[c] = {"S1": int(m.sum()), "empty_share": round(float((k[m] == 0).mean()), 4),
+                    "avg_matches_nonempty": round(float(k[m][k[m] > 0].mean()), 4)}
+    json.dump(stats, open(out / "stats.json", "w"), indent=1)
+    print(json.dumps(stats, indent=1))

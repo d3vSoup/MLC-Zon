@@ -34,8 +34,8 @@ def run(force=False):
 
 
 # frac < 1 trains on that share of S1 (key-hashed) but still predicts every OOF row: learning-curve probe
-def fit(name=None, frac=1.0, rounds=None, test=True):
-    d = pq.read_table(work("train", "r2.parquet")).to_pandas()
+def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False):
+    d = load_r2("train", use_ce)
     feats = [c for c in d.columns if c not in DROP]
     fold = fold_map()["fold"].reindex(d["s1"].values).values
     use = (d["s1"].values % 1000) < frac * 1000
@@ -66,11 +66,21 @@ def fit(name=None, frac=1.0, rounds=None, test=True):
         .to_csv(work("reports", f"importance_{name or R2['name']}.tsv"), sep="\t")
     write_preds("train", rows, oof, name)
     if test:
-        predict_test()
+        predict_test(name, use_ce)
 
 
-def predict_test(name=None):
-    d = pq.read_table(work("test", "r2.parquet")).to_pandas()
+# round-2 table, optionally with the cross-encoder score (NaN outside the CE band)
+def load_r2(split, use_ce=False):
+    d = pq.read_table(work(split, "r2.parquet")).to_pandas()
+    if use_ce:
+        ce = pd.read_parquet(work(split, "ce_p.parquet"))
+        d["ce_p"] = pd.Series(ce["ce_p"].values, index=ce["row"].values).reindex(d["row"].values).values
+        print(f"{split}: ce_p present on {d.ce_p.notna().mean():.3f} of round-2 rows", flush=True)
+    return d
+
+
+def predict_test(name=None, use_ce=False):
+    d = load_r2("test", use_ce)
     ms = [lgb.Booster(model_file=str(model_path(k, name))) for k in range(CFG["lgbm"]["test_models"])]
     X = d[ms[0].feature_name()]
     write_preds("test", d["row"].values, np.mean([m.predict(X, num_threads=CFG["n_jobs"]) for m in ms], axis=0),

@@ -45,3 +45,11 @@ round2:                 # group (graph) features + stacked model on hard pairs o
 
 decode:
   model: lgbm1_r3000    # which preds decode/write use
+
+ce:                     # cross-encoder (xlm-roberta-base) data export; scored on teammates' Kaggle GPUs
+  from_model: lgbm1_r3000
+  band_lo: 0.03         # band = lo < p < hi  OR  (rank in record < band_rank AND p >= band_floor)
+  band_hi: 0.97
+  band_rank: 3
+  band_floor: 0.001     # drops 20M hopeless top-3 pairs: 31.1M -> 10.8M train pairs, error coverage 95.9% -> 95.8%
+  cap: 600000           # training pairs per half (40% pos: half hardest; 60% neg: half hardest, quarter chain-name)
