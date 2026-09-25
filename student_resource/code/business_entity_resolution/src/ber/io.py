@@ -14,6 +14,7 @@ import yaml
 SRC = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("BER_ROOT", SRC.parents[2]))  # student_resource/
 CFG = yaml.safe_load(open(SRC / "configs" / "default.yaml"))
+CFG["n_jobs"] = CFG["n_jobs"] or os.cpu_count()
 
 
 # resolve path under student_resource root

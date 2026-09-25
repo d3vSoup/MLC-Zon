@@ -7,7 +7,7 @@ validator: utils/validate_submission.py
 seed: 42
 n_folds: 5
 train_s1_frac: 0.2      # LightGBM trains on this share of S1 groups; OOF predicts all
-n_jobs: 16
+n_jobs: 0               # 0 = all CPU cores (laptop 16, AWS box more)
 
 normalize:
   translit_indic: true
