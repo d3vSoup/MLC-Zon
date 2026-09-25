@@ -14,11 +14,10 @@ normalize:
 
 blocking:
   within_country: true  # phase0 item 5: zero cross-country true pairs
-  analyzer: word        # probe (US 30k queries): word 1-2gram df<=0.3% PC@10 .978 in 3s; char3-4 PC@10 .982 in 281s
-  ngram: [1, 2]
-  max_df: 0.003         # drop tokens in more than 0.3% of S1 docs (speed vs recall knob)
-  topk_store: 15        # store this many S1 per S2/S3 record
-  k: 10                 # pairs kept for features/model (set from PC@K report)
+  max_df: 0.003         # drop tokens in more than 0.3% of docs (speed vs recall knob)
+  k_fw: 10              # all tokens (name words/pairs/glued/skeleton + address words/bigrams), top-K S1 per record
+  k_hh: 10              # half name + half address cosine, top-K S1 per record
+  k_rv: 0               # reverse: top-K records per S1 (probe: +0.3-0.8% PC for ~+30 min/split; off)
 
 features:
   chunk: 2000000
@@ -32,6 +31,6 @@ lgbm:
   bagging_fraction: 0.8
   bagging_freq: 1
   lambda_l2: 1.0
-  num_boost_round: 3000
+  num_boost_round: 1000   # dev cycles (1000->3000 at lr 0.1: logloss -2.6%, +~1.5 h/cycle); final run: 3000
   early_stopping: 100
   test_models: 1         # v0: 1 fold model (5-model mean costs ~100 min on CPU); same calibration as OOF

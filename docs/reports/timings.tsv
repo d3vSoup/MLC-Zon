@@ -123,3 +123,188 @@
 2026-09-25 03:46:36	predict test	1364.9
 2026-09-25 03:47:55	decode oof	77.9
 2026-09-25 03:50:35	write tsvs	105.5
+2026-09-25 05:34:05	decode oof	218.9
+2026-09-25 05:43:56	write tsvs	109.3
+2026-09-25 07:39:01	normalize train s1	26.8
+2026-09-25 07:40:04	normalize train s2	63.2
+2026-09-25 07:41:09	normalize train s3	65.4
+2026-09-25 07:41:52	normalize test s1	24.7
+2026-09-25 07:43:03	normalize test s2	70.6
+2026-09-25 07:44:17	normalize test s3	73.5
+2026-09-25 08:18:52	  fw R=1323633 Q=6186873	994.6
+2026-09-25 08:35:45	  hh R=1323633 Q=6186873	1012.9
+2026-09-25 08:40:36	block train US	2297.6
+2026-09-25 08:48:44	  fw R=883188 Q=4133346	454.0
+2026-09-25 08:56:35	  hh R=883188 Q=4133346	470.7
+2026-09-25 08:59:42	block train India	1111.5
+2026-09-25 09:06:28	  fw R=663106 Q=3817031	282.9
+2026-09-25 09:11:26	  hh R=663106 Q=3817031	297.6
+2026-09-25 09:14:07	block test US	742.0
+2026-09-25 09:14:53	  fw R=259452 Q=1434993	36.0
+2026-09-25 09:15:32	  hh R=259452 Q=1434993	39.5
+2026-09-25 09:16:24	block test France	127.0
+2026-09-25 09:24:22	  fw R=809986 Q=4717565	475.1
+2026-09-25 09:32:38	  hh R=809986 Q=4717565	496.0
+2026-09-25 09:36:03	block test India	1175.3
+2026-09-25 09:37:06	features train chunk 0	4.6
+2026-09-25 09:37:10	features train chunk 1	3.8
+2026-09-25 09:37:14	features train chunk 2	3.8
+2026-09-25 09:37:18	features train chunk 3	3.8
+2026-09-25 09:37:22	features train chunk 4	3.9
+2026-09-25 09:37:26	features train chunk 5	3.7
+2026-09-25 09:37:29	features train chunk 6	3.7
+2026-09-25 09:37:33	features train chunk 7	3.7
+2026-09-25 09:37:37	features train chunk 8	3.7
+2026-09-25 09:37:41	features train chunk 9	3.8
+2026-09-25 09:37:45	features train chunk 10	3.7
+2026-09-25 09:37:49	features train chunk 11	3.7
+2026-09-25 09:37:52	features train chunk 12	3.7
+2026-09-25 09:37:56	features train chunk 13	3.7
+2026-09-25 09:38:00	features train chunk 14	3.7
+2026-09-25 09:38:04	features train chunk 15	3.7
+2026-09-25 09:38:07	features train chunk 16	3.7
+2026-09-25 09:38:11	features train chunk 17	3.7
+2026-09-25 09:38:15	features train chunk 18	3.7
+2026-09-25 09:38:19	features train chunk 19	3.7
+2026-09-25 09:38:22	features train chunk 20	3.7
+2026-09-25 09:38:26	features train chunk 21	3.7
+2026-09-25 09:38:30	features train chunk 22	3.7
+2026-09-25 09:38:34	features train chunk 23	3.7
+2026-09-25 09:38:37	features train chunk 24	3.7
+2026-09-25 09:38:41	features train chunk 25	3.7
+2026-09-25 09:38:45	features train chunk 26	3.7
+2026-09-25 09:38:49	features train chunk 27	3.7
+2026-09-25 09:38:52	features train chunk 28	3.7
+2026-09-25 09:38:56	features train chunk 29	3.7
+2026-09-25 09:39:00	features train chunk 30	3.7
+2026-09-25 09:39:04	features train chunk 31	3.7
+2026-09-25 09:39:07	features train chunk 32	3.7
+2026-09-25 09:39:11	features train chunk 33	3.9
+2026-09-25 09:39:15	features train chunk 34	3.7
+2026-09-25 09:39:19	features train chunk 35	3.7
+2026-09-25 09:39:23	features train chunk 36	3.8
+2026-09-25 09:39:26	features train chunk 37	3.7
+2026-09-25 09:39:30	features train chunk 38	3.9
+2026-09-25 09:39:34	features train chunk 39	3.8
+2026-09-25 09:39:38	features train chunk 40	3.8
+2026-09-25 09:39:42	features train chunk 41	4.1
+2026-09-25 09:39:46	features train chunk 42	3.8
+2026-09-25 09:39:50	features train chunk 43	3.7
+2026-09-25 09:39:54	features train chunk 44	3.7
+2026-09-25 09:39:57	features train chunk 45	3.8
+2026-09-25 09:40:01	features train chunk 46	4.0
+2026-09-25 09:40:06	features train chunk 47	4.0
+2026-09-25 09:40:10	features train chunk 48	4.0
+2026-09-25 09:40:14	features train chunk 49	4.0
+2026-09-25 09:40:18	features train chunk 50	4.0
+2026-09-25 09:40:22	features train chunk 51	4.0
+2026-09-25 09:40:26	features train chunk 52	4.0
+2026-09-25 09:40:30	features train chunk 53	4.0
+2026-09-25 09:40:34	features train chunk 54	4.1
+2026-09-25 09:40:38	features train chunk 55	4.1
+2026-09-25 09:40:42	features train chunk 56	3.9
+2026-09-25 09:40:46	features train chunk 57	4.0
+2026-09-25 09:40:50	features train chunk 58	3.9
+2026-09-25 09:40:54	features train chunk 59	3.9
+2026-09-25 09:40:58	features train chunk 60	3.9
+2026-09-25 09:41:02	features train chunk 61	4.0
+2026-09-25 09:41:06	features train chunk 62	4.0
+2026-09-25 09:41:10	features train chunk 63	4.0
+2026-09-25 09:41:14	features train chunk 64	4.2
+2026-09-25 09:41:18	features train chunk 65	3.9
+2026-09-25 09:41:23	features train chunk 66	4.1
+2026-09-25 09:41:27	features train chunk 67	4.0
+2026-09-25 09:41:31	features train chunk 68	3.9
+2026-09-25 09:41:34	features train chunk 69	3.9
+2026-09-25 09:41:38	features train chunk 70	3.9
+2026-09-25 09:41:43	features train chunk 71	4.1
+2026-09-25 09:41:47	features train chunk 72	4.0
+2026-09-25 09:41:51	features train chunk 73	4.0
+2026-09-25 09:41:55	features train chunk 74	4.0
+2026-09-25 09:41:59	features train chunk 75	4.0
+2026-09-25 09:42:02	features train chunk 76	2.9
+2026-09-25 09:42:10	features test chunk 0	4.5
+2026-09-25 09:42:14	features test chunk 1	3.8
+2026-09-25 09:42:18	features test chunk 2	3.7
+2026-09-25 09:42:21	features test chunk 3	3.8
+2026-09-25 09:42:25	features test chunk 4	3.8
+2026-09-25 09:42:29	features test chunk 5	3.8
+2026-09-25 09:42:33	features test chunk 6	3.8
+2026-09-25 09:42:37	features test chunk 7	3.8
+2026-09-25 09:42:41	features test chunk 8	3.8
+2026-09-25 09:42:44	features test chunk 9	3.8
+2026-09-25 09:42:48	features test chunk 10	3.8
+2026-09-25 09:42:52	features test chunk 11	3.8
+2026-09-25 09:42:56	features test chunk 12	3.9
+2026-09-25 09:43:00	features test chunk 13	3.9
+2026-09-25 09:43:04	features test chunk 14	3.8
+2026-09-25 09:43:08	features test chunk 15	3.9
+2026-09-25 09:43:12	features test chunk 16	3.9
+2026-09-25 09:43:16	features test chunk 17	3.8
+2026-09-25 09:43:20	features test chunk 18	4.0
+2026-09-25 09:43:24	features test chunk 19	3.8
+2026-09-25 09:43:28	features test chunk 20	4.1
+2026-09-25 09:43:32	features test chunk 21	3.8
+2026-09-25 09:43:35	features test chunk 22	3.8
+2026-09-25 09:43:39	features test chunk 23	3.9
+2026-09-25 09:43:43	features test chunk 24	3.8
+2026-09-25 09:43:47	features test chunk 25	3.8
+2026-09-25 09:43:51	features test chunk 26	3.7
+2026-09-25 09:43:55	features test chunk 27	3.8
+2026-09-25 09:43:59	features test chunk 28	3.8
+2026-09-25 09:44:03	features test chunk 29	3.8
+2026-09-25 09:44:06	features test chunk 30	3.8
+2026-09-25 09:44:10	features test chunk 31	3.8
+2026-09-25 09:44:14	features test chunk 32	3.9
+2026-09-25 09:44:18	features test chunk 33	3.9
+2026-09-25 09:44:22	features test chunk 34	3.8
+2026-09-25 09:44:26	features test chunk 35	3.9
+2026-09-25 09:44:30	features test chunk 36	4.0
+2026-09-25 09:44:34	features test chunk 37	3.9
+2026-09-25 09:44:38	features test chunk 38	3.8
+2026-09-25 09:44:42	features test chunk 39	4.2
+2026-09-25 09:44:47	features test chunk 40	4.4
+2026-09-25 09:44:51	features test chunk 41	4.2
+2026-09-25 09:44:55	features test chunk 42	4.0
+2026-09-25 09:44:59	features test chunk 43	3.9
+2026-09-25 09:45:03	features test chunk 44	4.0
+2026-09-25 09:45:07	features test chunk 45	4.0
+2026-09-25 09:45:11	features test chunk 46	4.0
+2026-09-25 09:45:15	features test chunk 47	4.0
+2026-09-25 09:45:19	features test chunk 48	4.0
+2026-09-25 09:45:23	features test chunk 49	4.1
+2026-09-25 09:45:27	features test chunk 50	4.0
+2026-09-25 09:45:31	features test chunk 51	4.1
+2026-09-25 09:45:35	features test chunk 52	4.1
+2026-09-25 09:45:40	features test chunk 53	4.0
+2026-09-25 09:45:44	features test chunk 54	4.1
+2026-09-25 09:45:48	features test chunk 55	4.0
+2026-09-25 09:45:52	features test chunk 56	4.0
+2026-09-25 09:45:56	features test chunk 57	4.1
+2026-09-25 09:46:00	features test chunk 58	4.0
+2026-09-25 09:46:04	features test chunk 59	3.9
+2026-09-25 09:46:08	features test chunk 60	4.3
+2026-09-25 09:46:12	features test chunk 61	4.1
+2026-09-25 09:46:16	features test chunk 62	4.1
+2026-09-25 09:46:20	features test chunk 63	3.9
+2026-09-25 09:46:25	features test chunk 64	4.4
+2026-09-25 09:46:29	features test chunk 65	4.0
+2026-09-25 09:46:33	features test chunk 66	4.1
+2026-09-25 09:46:38	features test chunk 67	4.6
+2026-09-25 09:46:42	features test chunk 68	4.3
+2026-09-25 09:46:46	features test chunk 69	4.2
+2026-09-25 09:46:51	features test chunk 70	4.2
+2026-09-25 09:46:55	features test chunk 71	4.1
+2026-09-25 09:46:59	features test chunk 72	4.2
+2026-09-25 09:47:03	features test chunk 73	4.1
+2026-09-25 09:47:05	features test chunk 74	1.4
+2026-09-25 10:07:33	lgbm fold 0	1207.8
+2026-09-25 10:17:06	lgbm fold 0	453.4
+2026-09-25 10:25:01	lgbm fold 1	474.4
+2026-09-25 10:32:37	lgbm fold 2	456.3
+2026-09-25 10:40:17	lgbm fold 3	460.1
+2026-09-25 10:47:57	lgbm fold 4	460.0
+2026-09-25 11:00:22	predict train	743.8
+2026-09-25 11:12:10	predict test	706.9
+2026-09-25 11:16:05	decode oof	233.8
+2026-09-25 11:20:52	write tsvs	170.1

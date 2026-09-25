@@ -37,28 +37,32 @@ def run(force=False):
         d["label"] = labels[off:off + n]
         off += n
         d["fold"] = fm["fold"].reindex(d["s1"]).values
-        parts.append(d[fm["sampled"].reindex(d["s1"]).values])
+        parts.append(d[fm["sampled"].reindex(d["s1"]).values].drop(columns=ID))
     tr = pd.concat(parts, ignore_index=True)
     del parts
     feats = [c for c in tr.columns if c not in ID + ["label", "fold"]]
     print(f"train rows {len(tr)} pos rate {tr.label.mean():.4f} feats {feats}")
+    fold = tr["fold"].values
     p = CFG["lgbm"]
-    params = {k: v for k, v in p.items() if k not in ("num_boost_round", "early_stopping")}
+    params = {k: v for k, v in p.items() if k not in ("num_boost_round", "early_stopping", "test_models")}
     params.update(seed=CFG["seed"], deterministic=True, force_row_wise=True, num_threads=CFG["n_jobs"],
                   verbose=-1, metric="binary_logloss")
+    # bin once, then per-fold subsets: no raw-data copies (RAM)
+    full = lgb.Dataset(tr[feats].astype(np.float32), tr["label"].values, params=params, free_raw_data=True).construct()
+    del tr
     imp = []
     for k in range(CFG["n_folds"]):
         with timed(f"lgbm fold {k}"):
-            t, v = tr[tr.fold != k], tr[tr.fold == k]
-            m = lgb.train(params, lgb.Dataset(t[feats], t.label), p["num_boost_round"],
-                          valid_sets=[lgb.Dataset(v[feats], v.label)],
+            t, v = full.subset(np.flatnonzero(fold != k)), full.subset(np.flatnonzero(fold == k))
+            m = lgb.train(params, t, p["num_boost_round"], valid_sets=[v],
                           callbacks=[lgb.early_stopping(p["early_stopping"], verbose=False), lgb.log_evaluation(200)])
             m.save_model(model_path(k))
             imp.append(pd.Series(m.feature_importance("gain"), index=feats))
-            print(f"fold {k} best_iter {m.best_iteration} logloss {m.best_score['valid_0']['binary_logloss']:.5f}")
+            print(f"fold {k} best_iter {m.best_iteration} logloss {m.best_score['valid_0']['binary_logloss']:.5f}",
+                  flush=True)
     (pd.concat(imp, axis=1).mean(axis=1).sort_values(ascending=False) / 1e6).round(2) \
         .to_csv(work("reports", f"importance_{NAME}.tsv"), sep="\t")
-    del tr
+    del full
     predict("train")
 
 

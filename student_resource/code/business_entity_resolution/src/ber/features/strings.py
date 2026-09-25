@@ -39,14 +39,14 @@ def run(split, force=False):
     pf = pq.ParquetFile(work(split, "cands.parquet"))
     writer = None
     sim = lambda a, b, sc: cpdist(a, b, scorer=sc, workers=-1, dtype=np.float32)
+    ctx = [c for c in pf.schema_arrow.names if c.endswith(("_score", "_rank")) or c == "n_channels"]
     for n, batch in enumerate(pf.iter_batches(batch_size=CFG["features"]["chunk"],
-                                              columns=["s1", "cand", "src", "tfidf_na_score", "tfidf_na_rank"])):
+                                              columns=["s1", "cand", "src"] + ctx)):
         with timed(f"features {split} chunk {n}"):
             c = batch.to_pandas()
             pa_, pb = ia.get_indexer(c["s1"]), ib.get_indexer(c["cand"])
             assert (pa_ >= 0).all() and (pb >= 0).all()
-            f = pd.DataFrame({"s1": c["s1"], "cand": c["cand"], "src": c["src"],
-                              "tfidf_na_score": c["tfidf_na_score"], "tfidf_na_rank": c["tfidf_na_rank"]})
+            f = c[["s1", "cand", "src"] + ctx].copy()
             ac, bc = pick(A, "name_core", pa_), pick(B, "name_core", pb)
             f["nc_ratio"] = sim(ac, bc, fuzz.ratio)
             f["nc_tset"] = sim(ac, bc, fuzz.token_set_ratio)

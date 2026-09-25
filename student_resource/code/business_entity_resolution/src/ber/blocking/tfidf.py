@@ -1,5 +1,9 @@
+import itertools
+from multiprocessing import Pool
+
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 import pyarrow as pa
 import pyarrow.parquet as pq
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -8,13 +12,13 @@ from sparse_dot_topn import sp_matmul_topn
 from ber.io import CFG, read_truth, timed, to_key, work
 
 B = CFG["blocking"]
+COLS = ["entity_id", "country", "name_core", "name_skel", "addr_norm"]
+SHIFT = 23  # pair code = s1_idx << 23 | cand_idx (within one country; < 8.4M records)
 
 
-def load(split, s, cols=("entity_id", "country", "name_core", "addr_norm")):
-    d = pd.read_parquet(work(split, f"norm_s{s}.parquet"), columns=list(cols))
+def load(split, s):
+    d = pd.read_parquet(work(split, f"norm_s{s}.parquet"), columns=COLS)
     d["key"] = to_key(d.pop("entity_id"))
-    if "addr_norm" in d:
-        d["text"] = d.pop("name_core") + " " + d.pop("addr_norm")
     return d
 
 
@@ -24,62 +28,139 @@ def owners():
     return pd.Series(to_key(long["s1_id"]), index=to_key(long["cand_id"]))
 
 
-# top-n S1 per query row by char-gram tfidf cosine -> (row, col, score, rank)
-def search(vec, r_text, q_text, top_n):
-    R = vec.fit_transform(r_text)
-    RT = R.T.tocsr()
-    Q = vec.transform(q_text)
-    M = sp_matmul_topn(Q, RT, top_n=top_n, n_threads=CFG["n_jobs"]).tocsr()
+def _pairs(t):
+    return ["|".join(sorted(p)) for p in itertools.combinations(t[:6], 2)]
+
+
+# name tokens: words, word pairs (any order), glued name, sound-alike skeleton words + pairs
+def name_toks(n, sk):
+    nt, st = n.split(), sk.split()
+    out = ["n:" + w for w in nt] + ["np:" + p for p in _pairs(nt)]
+    c = [w for w in nt if w != "and"]
+    if c:
+        out.append("nc:" + "".join(c))
+        if len(c) > 2:
+            out.append("nc:" + c[0] + c[1])
+    return out + ["s:" + w for w in st] + ["sp:" + p for p in _pairs(st)]
+
+
+def addr_toks(a):
+    at = a.split()
+    return ["a:" + w for w in at] + ["ab:" + x + "_" + y for x, y in zip(at, at[1:])]
+
+
+def doc(row):
+    return " ".join(name_toks(row[0], row[1]) + addr_toks(row[2]))
+
+
+def doc_name(row):
+    return " ".join(name_toks(row[0], row[1]))
+
+
+def doc_addr(row):
+    return " ".join(addr_toks(row[2]))
+
+
+def docs(pool, d, fn=doc):
+    return pool.imap(fn, zip(d["name_core"], d["name_skel"], d["addr_norm"]), chunksize=20000)
+
+
+# name and address as separate unit vectors, each half the weight: long addresses stop drowning the name
+def half_half(pool, r, qq):
+    w = np.float32(0.5 ** 0.5)
+    parts = []
+    for fn in (doc_name, doc_addr):
+        vec = vectorizer()
+        parts.append((vec.fit_transform(docs(pool, r, fn)) * w, vec.transform(docs(pool, qq, fn)) * w))
+    return sp.hstack([p[0] for p in parts]).tocsr(), sp.hstack([p[1] for p in parts]).tocsr()
+
+
+def vectorizer():
+    return TfidfVectorizer(analyzer="word", token_pattern=r"\S+", max_df=B["max_df"],
+                           dtype=np.float32, sublinear_tf=True)
+
+
+# top-n index rows per query row -> (query_idx, index_idx, score, rank)
+def topn(Q, R, n):
+    M = sp_matmul_topn(Q, R.T.tocsr(), top_n=n, n_threads=CFG["n_jobs"]).tocsr()
     row = np.repeat(np.arange(M.shape[0]), np.diff(M.indptr))
-    order = np.lexsort((-M.data, row))
-    row, col, score = row[order], M.indices[order], M.data[order].astype(np.float32)
-    start = np.repeat(M.indptr[:-1], np.diff(M.indptr))
-    rank = (np.arange(len(row)) - start).astype(np.int8)
+    o = np.lexsort((-M.data, row))
+    row, col, score = row[o], M.indices[o], M.data[o].astype(np.float32)
+    rank = (np.arange(len(row)) - np.repeat(M.indptr[:-1], np.diff(M.indptr))).astype(np.int16)
     return row, col, score, rank
 
 
-# channel 1: name_core + addr word 1-2 gram tfidf, S2/S3 -> top-K S1, within country
-def run(split, force=False, limit=None):
+# fw: all tokens, top-K S1 per record; hh: half name + half address; rv: top-K records per S1
+def channels(pool, r, qq):
+    out = {}
+    with timed(f"  fw R={len(r)} Q={len(qq)}"):
+        vec = vectorizer()
+        R = vec.fit_transform(docs(pool, r))
+        Q = vec.transform(docs(pool, qq))
+        qi, si, sc, rk = topn(Q, R, B["k_fw"])
+        out["fw"] = ((si.astype(np.int64) << SHIFT) | qi, sc, rk)
+        del R, Q
+    if B["k_hh"]:
+        with timed(f"  hh R={len(r)} Q={len(qq)}"):
+            R, Q = half_half(pool, r, qq)
+            qi, si, sc, rk = topn(Q, R, B["k_hh"])
+            out["hh"] = ((si.astype(np.int64) << SHIFT) | qi, sc, rk)
+            del R, Q
+    if B["k_rv"]:
+        with timed(f"  rv S1={len(r)} D={len(qq)}"):
+            vec = vectorizer()
+            D = vec.fit_transform(docs(pool, qq))
+            S = vec.transform(docs(pool, r))
+            si, qi, sc, rk = topn(S, D, B["k_rv"])
+            out["rv"] = ((si.astype(np.int64) << SHIFT) | qi, sc, rk)
+    return out
+
+
+# union of channels -> one row per pair, NaN score/rank where a channel did not propose it
+def merge(ch):
+    allp = np.unique(np.concatenate([v[0] for v in ch.values()]))
+    cols, n_ch = {}, np.zeros(len(allp), np.int8)
+    for name, (p, sc, rk) in ch.items():
+        pos = np.searchsorted(allp, p)
+        s, r = np.full(len(allp), np.nan, np.float32), np.full(len(allp), np.nan, np.float32)
+        s[pos], r[pos] = sc, rk
+        cols[f"{name}_score"], cols[f"{name}_rank"] = s, r
+        n_ch[pos] += 1
+    return allp, cols, n_ch
+
+
+def run(split, force=False):
     out = work(split, "cands.parquet")
-    if out.exists() and not force and limit is None:
+    if out.exists() and not force:
         return
     s1 = load(split, 1)
     q = pd.concat([load(split, 2), load(split, 3)], ignore_index=True)
     own = owners() if split == "train" else None
-    k, top = B["k"], B["topk_store"]
-    groups = [(c, s1.country == c, q.country == c) for c in s1.country.unique()] if B["within_country"] \
-        else [("all", np.ones(len(s1), bool), np.ones(len(q), bool))]
-    hits = np.zeros(top, np.int64)
-    n_true = 0
-    writer = None
-    for c, ms, mq in groups:
-        r, qq = s1[ms].reset_index(drop=True), q[mq].reset_index(drop=True)
-        if limit:
-            qq = qq.sample(min(limit, len(qq)), random_state=0).reset_index(drop=True)
-        vec = TfidfVectorizer(analyzer=B["analyzer"], token_pattern=r"\S+", ngram_range=tuple(B["ngram"]),
-                              max_df=B["max_df"], dtype=np.float32, sublinear_tf=True)
-        with timed(f"block tfidf {split} {c} R={len(r)} Q={len(qq)}"):
-            row, col, score, rank = search(vec, r["text"], qq["text"], top)
-        s1k, ck = r["key"].values[col], qq["key"].values[row]
-        if own is not None:
-            lab = (own.reindex(ck).values == s1k)
-            hits += np.bincount(rank[lab], minlength=top)
-            n_true += own.index.isin(qq["key"].values).sum()
-        keep = rank < k
-        t = pd.DataFrame({"s1": s1k[keep], "cand": ck[keep], "src": (ck[keep] // 10**10).astype(np.int8),
-                          "tfidf_na_score": score[keep], "tfidf_na_rank": rank[keep], "n_channels": np.int8(1)})
-        if own is not None:
-            t["label"] = lab[keep].astype(np.int8)
-        if limit:
-            continue
-        tbl = pa.Table.from_pandas(t, preserve_index=False)
-        writer = writer or pq.ParquetWriter(out, tbl.schema)
-        writer.write_table(tbl)
-    if writer:
-        writer.close()
-    if own is not None:
-        pc = np.cumsum(hits) / max(n_true, 1)
-        msg = "PC@K " + " ".join(f"{i + 1}:{pc[i]:.4f}" for i in range(top))
-        print(msg)
+    writer, stats = None, []
+    with Pool(CFG["n_jobs"]) as pool:
+        for c in s1["country"].unique():
+            r = s1[s1.country == c].reset_index(drop=True)
+            qq = q[q.country == c].reset_index(drop=True)
+            assert len(qq) < 2 ** SHIFT
+            with timed(f"block {split} {c}"):
+                ch = channels(pool, r, qq)
+                allp, cols, n_ch = merge(ch)
+                del ch
+            s1k, ck = r["key"].values[allp >> SHIFT], qq["key"].values[allp & (2 ** SHIFT - 1)]
+            t = pd.DataFrame({"s1": s1k, "cand": ck, "src": (ck // 10**10).astype(np.int8), **cols,
+                              "n_channels": n_ch})
+            if own is not None:
+                t["label"] = (own.reindex(ck).values == s1k).astype(np.int8)
+                n_true = own.index.isin(qq["key"].values).sum()
+                stats.append(f"{c}: pairs {len(t)} PC union {t.label.sum() / n_true:.4f} | " + " ".join(
+                    f"{n} {t.label[t[f'{n}_score'].notna()].sum() / n_true:.4f}"
+                    for n in ("fw", "hh", "rv") if f"{n}_score" in t))
+            tbl = pa.Table.from_pandas(t, preserve_index=False)
+            writer = writer or pq.ParquetWriter(out, tbl.schema)
+            writer.write_table(tbl)
+            del t, tbl
+    writer.close()
+    if stats:
+        print("\n".join(stats))
         with open(work("reports", "blocking_pc_at_k.txt"), "a") as f:
-            f.write(f"{split} limit={limit} max_df={B['max_df']} {msg}\n")
+            f.write(f"{split} k_fw={B['k_fw']} k_hh={B['k_hh']} k_rv={B['k_rv']} max_df={B['max_df']} | " + " || ".join(stats) + "\n")

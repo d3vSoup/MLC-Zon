@@ -1,39 +1,41 @@
 ## blocking report (train)
-pairs 102948716; cands per S1 mean 46.65 p95 127 max 141358; S1 with zero cands 0.0000
-reduction ratio 0.99999548
-PC overall **0.9654**
-PC by country: {'India': 0.9479, 'US': 0.9771}
-PC by source: {'S2': 0.9673, 'S3': 0.9637}
+pairs 153461986; cands per S1 mean 69.54 p95 211 max 51607; S1 with zero cands 0.0000
+reduction ratio 0.99999326
+PC overall **0.9825**
+PC by country: {'India': 0.972, 'US': 0.9895}
+PC by source: {'S2': 0.9839, 'S3': 0.9812}
+channel fw: alone PC 0.9778; drop-one PC delta -0.0061; pairs 103155053
+channel hh: alone PC 0.9763; drop-one PC delta -0.0046; pairs 103155053
 ### 30 missed true pairs
 ```
-Christal Redding Media | 70 Geary Court, Montgomery, AL  <->  CHRISTALREDDINGMEDIA.COM | 68 GEAY CT, MONTGOMERY, AL
-Jain Infrastructure Private Limited | 9, Ist Floor, Unio Street, Shivajinagar, Bangalore, Karnataka  <->  Infrastructure Jain Private Limited | 9, SHIVAJINAGAR, BANGALORE, Karnataka
-Sai Logistics Limited | Chennai, Chennai City Corporation, Tamil Nadu, Flat A, No 118/1(72/1), Vijayshree Apartments, Kamaraj Avenue 2Nd Street, Ground Floor  <->  சாய் லாஜிஸ்டிக்ஸ் லிமிடெட் | GROUND FLOOR, CHENNAI, CHENNAI CITY CORPORATION, Tamil Nadu
-Atlas Apex Inc. | 1202 5th Street, Hickman, KY  <->  Atlas Aie Inc. | 
-Tech Consultants Private Limited | 21, First Floor, S.L.F. Mall Indraprastha Colony, Sector 30-33, Faridabad, Haryana  <->  Tech Consulftants Private Limited | 51, Faridabad, Sector 30-33, HR
-Womens Health Group | 201 Ramona Street, Unit 1/2, Smithville, TX  <->  Womens Health LLC Enterprises | 
-Eye Health LLC | 1102 5th Street, Clinton, IN  <->  Eye LLC Héalth | 110 FIFTH ST, CLINOTN, IN
-Royal Producer Limited | 350, Sant Tukaram Society, Vibhag-2, Near Navsarjan School Palanpur Jakatnaka, Surat, Gujarat  <->  રોયલ પ્રોડ્યુસર લિમિટેડ | 350, SURAT, ગુજરાત
-Pune Infosoft Pvt Ltd | H No 426 26, Shivaji Nagar, Gavathan, Pune, 339, Pune, Maharashtra  <->  Pune Infsfot Pvt (Ltd) - 5486624172 | 339, Ue, Pune, MH
-Hitech Prime Projects Private Limited | A-56, Sector-72A, Near Dpg College, Tikri, Dlf Qe, Gurgaon, Haryana  <->  हाईटेक प्राइम प्रोजेक्ट्स प्राइवेट लिमिटेड | A-5-6, Gurgaon, HR
-Surgical Associates | Lincoln, 200 County Avenue, AR  <->  SURGICAL ASSOCIATES | COUNTY AVE, LINCOLN CITY, AR
-Pebblebrook PLLC | 5 Park Street, Unit Apartment 1, Ellenville, NY  <->  Kortavobrix | 5C Park St, Unit Apartment 1, Elenville, New York
-Bright Pizza | 14377 Allison Lane, Lawrenceville, IL  <->  Bright Pfa | 
-North United Network Inc | 19 Park Place, Danbury, CT  <->  Services North Network Inc | PARK PL, DANBURY, CT
-City Solutions Private Limited | 117, Shiv-Shakti Estate, Nr. Khemchand, Dayalji & Sons, Narol Road, Ahmedabad, Ahmadabad City, Ahmedabad, Gujarat  <->  City Solutions Private Ltd | D/117, Ahmedabad, ગુજરાત
-Pune Food Private Limited | Fl No. C-703, Micasa S No. -211/17/18A/18B, Tal Hadpsar, Pune, Maharashtra  <->  Pune F0od Private Limited | 
-Vega LLC | 4921 Natchez Highway, Wilmer, AL  <->  Vega-LLC | 
-Kolkata Handicrafts Private Limited | Kidderpore, Kolkata, Howrah, West Bengal, 4/3/H/25 Bhukailash Road, Kolkata  <->  Kolkata Hgeintfdicrifts Private Limited | 
-Ram Digital Food Private Limited | Room No. 308, 3Rd Floor, Sai Chambers, Plot No.44, Sector-11, C.B.D Belapur, Navi Mumbai, Thane, Maharashtra  <->  राम डिजिटल फूड प्राइवेट लिमिटेड | PLOT 19 ROOM NO. 308, NAVI MUMBAI, THANE, महाराष्ट्र
-Delta Committee | 114 Bay Ridge Loop, Hot Springs, AR  <->  Delta Committee Trading | 
-Strong Securities LLC | Chicago, 1753 Wabansia Avenue, IL  <->  #strongsecurities | 1753 WABANISA AVE, CHICAGO, IL
-Laxmi Exports | 1, First Floor, Shani Complex, Mehsana Char Rasta, Visnagar, Mahesana, Gujarat  <->  laxmiexports.com | #31 1, Visnagar, Mahesana, GJ
-Sujan (India) Steel Company | 85Chandra Nagar, Palakkad, Thrissur, Kerala  <->  #sujanindia | കേരളം, 5Chandra Nagar, Thrissur, Palakkad
-Prairie Communities P.C. | 932 10th Street, Newton, IA  <->  [Communities] Prairie P.C. | 93 Tenth St, Newton, Iowa
-All Renaissancere LLC | 2801 Tobey Drive, Indianapolis, IN  <->  All Ranssanctre LLC | 
-Red Power Private Limited | Ghanshyam Enclave, 1008, Plot 856, Link Road Kandivali West, Lalji Pada, Mumbai, Mumbai City, Maharashtra  <->  रेड पावर प्राइवेट लिमिटेड | MUMBAI, महाराष्ट्र, MUMBAI CITY, GHANSHYAM ENCLAVE
-Back Alley Hypnosis | 145 Sherrill Road, Sherrill, NY  <->  Back Alley Hypnosis Corp | 
-Woodruff and Lindsey LLC | VA, Greensville County, 195 Concord Lane  <->  woodrufflindsey.com | 528 Concord Lane, Emporia, Virginia
-Riddhi System Pvt. Ltd. | Thane, F-25, Maharashtra, Navi Mumbai, 1St Floor, Centurion Shopping & Shop Complex, Plot No 88-91, Sector 19A, Nerul (E)  <->  Riddhi Pvt.-Ltd. Partners | F-25, Navi Mumbai, MH
-Unique Services Limited | Kolkata, 8/27, Sahid Nagar, P.O. Haltu, Kolkata, West Bengal, Howrah  <->  ইউনিক সার্ভিসেস লিমিটেড | PCOT 248 8/27, KOLKATA, HOWRAH, West Bengal
+Sky Exports Private Limited | P O Ghataldist Paschim Midnapore, W B, Midnapur, West Bengal  <->  Sky Private Limited Partners & Co | 
+Alliance Office Limited | A Wing, Flat No 204, Flora Building, Hiranandani Estate, Ghodbunder Road, Thane, Maharashtra  <->  Alliance Otifaice Limited | 422 A Wing, Thane, MH
+Highland Society LLC | OH, 624 Brandy Way, Cincinnati  <->  Highland LLC Center | 
+Back Alley Barbershop | 918 Gay Street, Columbus, OH  <->  Back Alley Banberhop | 
+First Consulting Pvt Ltd | 310, Vardhman Seven Eleven Plaza, Lsc-7, Sector-7, Rohini, New Delhi, North Delhi, Delhi  <->  फर्स्ट कंसल्टिंग प्रा. लि. | ##310, NEW DELHI, NORTH DELHI, Delhi
+Tri-State Dental | 3200 Business Park Drive, WI, City Of Stevens Point  <->  Tri-State Partners Partners | 3200-3204 Business Park Drive, City Of Stevens Point, Wisconsin
+Baba Engineering Private Limited | Plot No 5, Sri Siva Sai Residency, Flat No 304, M J Colony, Street No 3, Secunderabad, Hyderabad, Telangana  <->  Prívate BABA Engineering Limited | No G-5, Secunderabad, Hyderabad, TG
+Lynx Group | 8320 Ironclad Drive, Hanover County, VA  <->  Lynx | 8320 Ironllad Drive, Mechanicsville, Virginia
+AP Drive Ltd | 2Nd & 4Th Floor, No. 507, 4Th Block, 1St Stage, Hbr Layout, Outer Ring Road, Bangalore North, Bangalore, Karnataka  <->  AP LTD-SERVICES | 
+Ideal Advisors | 1St Floor, Nitco House, Recondo Estate, Bmc Compound, S.K Ahire Marg, Worli, Mumbai, Mumbai City, Maharashtra  <->  iadvis0rs.com | 1ST FLOOR, MUMBAI, MUMBAI CITY, महाराष्ट्र
+International Bright Foods Private Limited | Vijay Apartment, 300, Canal Street, Sribhumi, 4Th Floor, Flat No. 10, Kolkata, Kolkata, Howrah, West Bengal  <->  ইন্টারন্যাশনাল ব্রাইট ফুডস প্রাইভেট লিমিটেড | 85 VIJAY APARTMENT, CALCUTTA, HOWRAH, পশ্চিমবঙ্গ
+Sai Investment Pvt Ltd | Plot No 139, 2Nd Floor, Prashanth Hills Colony, Rangareddy, Telangana  <->  ... Sai Pvt Ltd Services | DOOR NO 139, RANGAREDDY, NARSINGI, Andhra Pradesh
+Urban Foods Private Limited | Houseno 117P Sector 2, Bahadurgarh, Jhajjar, Bahadurgarh, Jhajjar, Haryana  <->  Urban Foods Private Limited | 
+Al Power Limited | F-63, Opposite- Gupta Store, Vaishali Nagar, Jaipur, Rajasthan  <->  Al Limited [Service] | F-63, Jaipur, RJ
+Twisted Tavern Corp | 3365 Swallow Hollow Drive, Youngstown, OH  <->  Twisted  Tavern | 
+Magnate Institute of Technology | No 993, Munnigowda Road Ramaswamy Palya, M S Nagar Post, Bengaluru, Bangalore, Karnataka  <->  institutetechn0logy.com | No 993, Bengaluru, Bangalore, ಕರ್ನಾಟಕ
+Main Street Hair Studio LLC | La Grange, 413 Willow Pond Drive, NC  <->  Main Street Hair Studio Llc | 
+Pinnacle Property Brands Clinic | 673 Ridge Rim Way, St George City, UT  <->  Pinnacle (Property) | 
+Physical Therapy Care Associates Inc | 171 Altura Way, Ivins Town, UT  <->  Physical Therapy Associates Inc Services | 
+New Delhi Hotels Pvt Ltd | B-22, 6Th Floor Pocket-9A, Jasola, New Delhi, South Delhi, Delhi  <->  New Delhi Pvt Ltd Services | B-22., New Delhi, South Delhi, DL
+Red High Power Pvt Ltd | 87 E/1 Street No 4 Krishna Nagar, Near Safdarjung Enclave, New Delhi, Delhi  <->  Red Hh Power Pvt  Ltd | 
+Best International | Darya Ganj, New Delhi, Emca House 23/23-B, Ansari Road, Delhi, 211  <->  बेस्ट इंटरनेशनल | ##211, N/A, DARYA GANJ, NEW DELHI, दिल्ली
+Pranraj Components Ltd | No.42, 1 A Cross, 3Rd Block R.M.V. Bangalore, Karnataka  <->  ORBIGILD | NO 42, KARNATAKA, BENGALURU URBAN, ಕರ್ನಾಟಕ
+Jain Logistics | D-702, Jhulelal Apartment, Road No 44, Pitampura, Delhi, North West Delhi, Delhi  <->  Jain Jain (Services) | D-702, Delhi, North West Delhi, DL
+Mous | 1515 Thorofare Road, WV, Clendenin  <->  Mous Enterprises | 
+Seven Global | 201, Manikanchan, Kanchan Lane Erandawane, Pune, Maharashtra  <->  Seven Gl0bal | 01, Pune, MH
+Dream Agro | 319/1, Choori Wali Gali, Chowk, Lucknow, Uttar Pradesh  <->  Dream Service | 
+White Developers Pvt Ltd | 105, Sai Prasad Commercial Complex 4Th Road, Khar (West), Mumbai, Mumbai City, Maharashtra  <->  व्हाइट डेवलपर्स प्रा. लि. | ##105, MUMBAI CITY, MUMBAI, Maharashtra
+East College | G-220, Preet Vihar, New Delhi, East Delhi, Delhi  <->  East-C0llege | 
+Sky Builders Private Limited | 304, Tf, Syndicate House, 3 Old Rohtak Road, Inderlok, Delhi, North West Delhi, Delhi  <->  Sky Builders Private Limited | 
 ```
