@@ -39,12 +39,12 @@ def rank_in(g, p):
 
 
 # group features for hard pairs (round-1 p >= hard_p): competition + similarity to sure siblings
-def run(split, force=False):
-    out = work(split, "r2.parquet")
+def run(split, force=False, preds=None, out=None):
+    out = out or work(split, "r2.parquet")
     if out.exists() and not force:
         return
     with timed(f"graph {split} load"):
-        pr = pq.read_table(work("preds", f"{'oof' if split == 'train' else 'test'}_{R1}.parquet")).to_pandas()
+        pr = pq.read_table(preds or work("preds", f"{'oof' if split == 'train' else 'test'}_{R1}.parquet")).to_pandas()
         p_all = pr["p"].values
         hard = np.flatnonzero(p_all >= R2["hard_p"])
         s1k, ck, p = pr["s1"].values[hard], pr["cand"].values[hard], p_all[hard]

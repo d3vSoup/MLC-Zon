@@ -12,12 +12,15 @@ Your scores become one more feature in our round-2 model.
 ## 1. Set up the notebook (once)
 1. Kaggle → New Notebook.
 2. Settings → Accelerator: **GPU T4 x2**. Internet: **On**. The model downloads from Hugging Face.
-3. Add Data (all shared with you, all private): `ce-train-pairs`, `ce-test-pairs`, `ber-code`.
+3. Add Data (private, shared with you by Muaz):
+   - https://www.kaggle.com/datasets/muaztpm/ce-train-pairs
+   - https://www.kaggle.com/datasets/muaztpm/ce-test-pairs
+   - https://www.kaggle.com/datasets/muaztpm/ber-code
 
 ## 2. Timing check first (about 10 min)
 ```
 !pip install -q transformers==5.17.0
-!python /kaggle/input/ber-code/ce_train_predict.py --half 1 --time_only        # Soup: --half 2
+!python $(find /kaggle/input -name ce_train_predict.py | head -1) --half 1 --time_only        # Soup: --half 2
 ```
 Post the last line, `TIMING: ... full run ETA X h`, in Discord. The timing run writes only to `pred_timing/`
 and never mixes with the real run.
@@ -33,7 +36,7 @@ It keeps running after you close the tab.
 ## 4. If it stops early (time limit or crash)
 1. Open the finished version → Output → "New notebook with this output", or add that version's output as data.
 2. Run the same command plus the resume flag:
-   `!python /kaggle/input/ber-code/ce_train_predict.py --half 1 --resume_dir /kaggle/input/<that-output-folder>`
+   `!python $(find /kaggle/input -name ce_train_predict.py | head -1) --half 1 --resume_dir /kaggle/input/<that-output-folder>`
 3. It restores the checkpoint, the finished model, and the finished parts, and it continues from there.
 4. If the log says `loss is NaN`, add `--lr 1e-5` and resume.
 
