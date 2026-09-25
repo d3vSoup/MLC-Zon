@@ -16,7 +16,7 @@ No network access is needed after the pip install. No external data, APIs, or ge
 
 Paths are set in `src/configs/default.yaml`, relative to `<root>`. Override the root with `BER_ROOT=/path`.
 
-## Run (CPU only, v0)
+## Run (CPU only)
 
 ```bash
 cd code/business_entity_resolution
@@ -27,9 +27,16 @@ PY=../.venv/bin/python python -m pytest -q tests
 ```
 
 Single stage: `$PY -m ber.cli <stage> [--split train|test] [--force]`.
-Stages: `normalize, folds, block, blockreport, features, train, predict, decode, report, write` (`eda` = Phase 0 facts).
+Stages in order (as in `run_all.sh`): `normalize, folds, block, blockreport, features, train` (round 1, 5 folds,
+OOF), `predict --split test`, `graph` (group features on pairs with round-1 p >= 0.01), `stack` (round 2, 3000
+rounds), `decode` (isotonic + gate + expected-F, all out-of-fold), `report`, `write`. `eda` = Phase 0 facts.
+LightGBM runs with a fixed 16 threads (`n_jobs` in the config): its output changes with the thread count, so do not
+change it if you want byte-identical files.
 `write` runs the official validator (the matching file whole, with `--check-ids`; the candidate file in row shards, using the validator's own functions, to stay inside 16 GB RAM).
 
-## Hardware and time (v0, measured)
+## Hardware and time (measured)
 
-Intel i7-11800H (16 threads), 16 GB RAM, no GPU used. See `work/reports/timings.tsv` for the time of each stage.
+Intel i7-11800H (16 threads), 16 GB RAM (+ swap), no GPU used. About 5.2 h end to end: normalize 7 min, blocking
+92 min, features 60 min, round-1 train 52 min + OOF predict 14 min, test predict 13 min, graph 2 min, round 2 55 min,
+decode 4 min, write + validation 8 min. Peak RAM about 10 GB; about 40 GB of disk for `work/`.
+Per-stage times are appended to `work/reports/timings.tsv`.

@@ -30,7 +30,7 @@ def write_preds(split, rows, p2, name=None):
 def run(force=False):
     if model_path(CFG["n_folds"] - 1).exists() and not force:
         return
-    fit()
+    fit(rounds=R2.get("num_boost_round"))
 
 
 # frac < 1 trains on that share of S1 (key-hashed) but still predicts every OOF row: learning-curve probe
@@ -69,8 +69,9 @@ def fit(name=None, frac=1.0, rounds=None, test=True):
         predict_test()
 
 
-def predict_test():
+def predict_test(name=None):
     d = pq.read_table(work("test", "r2.parquet")).to_pandas()
-    ms = [lgb.Booster(model_file=str(model_path(k))) for k in range(CFG["lgbm"]["test_models"])]
+    ms = [lgb.Booster(model_file=str(model_path(k, name))) for k in range(CFG["lgbm"]["test_models"])]
     X = d[ms[0].feature_name()]
-    write_preds("test", d["row"].values, np.mean([m.predict(X, num_threads=CFG["n_jobs"]) for m in ms], axis=0))
+    write_preds("test", d["row"].values, np.mean([m.predict(X, num_threads=CFG["n_jobs"]) for m in ms], axis=0),
+                name)

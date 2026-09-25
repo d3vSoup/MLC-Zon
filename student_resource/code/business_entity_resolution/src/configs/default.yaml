@@ -7,7 +7,7 @@ validator: utils/validate_submission.py
 seed: 42
 n_folds: 5
 train_s1_frac: 0.2      # LightGBM trains on this share of S1 groups; OOF predicts all
-n_jobs: 0               # 0 = all CPU cores (laptop 16, AWS box more)
+n_jobs: 16              # FIXED: LightGBM output changes with thread count (audit 2026-09-25); keep 16 on every machine
 
 normalize:
   translit_indic: true
@@ -37,10 +37,11 @@ lgbm:
 
 round2:                 # group (graph) features + stacked model on hard pairs only
   from_model: lgbm0     # round-1 preds used as input
-  name: lgbm1
+  name: lgbm1_r3000      # the uploaded fallback (OOF 0.9773)
+  num_boost_round: 3000
   hard_p: 0.01          # round 2 re-scores pairs with round-1 p >= this (9.8M of 153M train pairs); rest keep round-1 p
   sure_p: 0.5           # siblings = records with p >= this on the same S1
   max_sib: 20
 
 decode:
-  model: lgbm1          # which preds decode/write use
+  model: lgbm1_r3000    # which preds decode/write use

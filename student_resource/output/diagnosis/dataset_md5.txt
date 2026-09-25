@@ -1,0 +1,8 @@
+file|md5|bytes|lines_incl_header|mtime
+dataset/test/test_source1.tsv|51a155b8c84bfefcf049e983f06c3cf4|175022086|1732545|2026-09-18 18:17:50
+dataset/test/test_source2.tsv|ff8aba5701829a622ac05b2765c4eb5b|509456422|4887274|2026-09-18 18:17:50
+dataset/test/test_source3.tsv|5f48d48594dea3ea1455549eb5233ad8|506002772|5082317|2026-09-18 18:17:50
+dataset/train/train_ground_truth.tsv|3643443570b2c881c425d69c2d46e95d|127015583|2206822|2026-09-18 18:17:50
+dataset/train/train_source1.tsv|1a0c98e43dad1babed3c99bca2c7b5bd|210069713|2206822|2026-09-18 18:17:50
+dataset/train/train_source2.tsv|a7bddba33ead4a85e6c088ad3b377fc2|489301488|5034617|2026-09-18 18:17:50
+dataset/train/train_source3.tsv|5df07bf109f55a292bdfaa8c983cfa20|503705637|5285604|2026-09-18 18:17:50
