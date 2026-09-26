@@ -210,7 +210,7 @@ def variant(direction, extra=(), pseudo=False, rounds=None):
     y = d["label"].values.copy()
     train_rows = is_src.copy()
     if pseudo:  # unseen side: confident round-2 predictions become labels (true labels never used there)
-        p_base = pq.read_table(work("preds", f"oof_loco_{direction}.parquet")).column("p").to_numpy()[rows]
+        p_base = pq.read_table(work("preds", f"oof_loco_{direction}.parquet"), columns=["p"]).column(0).to_numpy()[rows]
         pos, neg = ~is_src & (p_base > 0.95), ~is_src & (p_base < 0.02)
         y[pos], y[neg] = 1, 0
         train_rows |= pos | neg
@@ -224,11 +224,13 @@ def variant(direction, extra=(), pseudo=False, rounds=None):
         t, v = full.subset(np.flatnonzero(f_tr != k)), full.subset(np.flatnonzero(f_tr == k))
         m = lgb.train(p, t, rounds, valid_sets=[v], callbacks=[lgb.early_stopping(100, verbose=False)])
         out[fold == k] = m.predict(X[fold == k], num_threads=CFG["n_jobs"])
+    del X, full, t, v, m, d  # free ~5 GB before evaluate loads all 153M pair preds
     t = pq.read_table(work("loco", direction, "oof_r1.parquet"))
     pp = t.column("p").to_numpy().copy()
     pp[rows] = out
     tag = f"{direction}_{'_'.join(extra) or 'base'}{'_pseudo' if pseudo else ''}"
     pq.write_table(t.set_column(2, "p", pa.array(pp)), work("preds", f"oof_loco_{tag}.parquet"))
+    del t, pp
     res = evaluate(f"loco_{tag}", src, direction)
     json.dump(res, open(work("reports", f"loco_{tag}.json"), "w"), indent=1)
     print(tag, {k: {x: v[x] for x in ("F0.5", "singleton_only", "precision")} for k, v in res.items()})

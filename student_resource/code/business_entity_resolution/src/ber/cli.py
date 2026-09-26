@@ -6,7 +6,8 @@ STAGES = {"eda": ("ber.eda", "run"), "normalize": ("ber.normalize", "run"), "fol
           "block": ("ber.blocking.tfidf", "run"), "blockreport": ("ber.blocking.report", "run"),
           "features": ("ber.features.strings", "run"), "train": ("ber.models.lgbm", "run"),
           "predict": ("ber.models.lgbm", "predict"), "graph": ("ber.features.graph", "run"),
-          "stack": ("ber.models.stack", "run"), "ce_export": ("ber.ce_export", "run"), "decode": ("ber.decode", "run"),
+          "r2feats": ("ber.features.r2extra", "run"),
+          "ce": ("ber.ce_ingest", "run"), "stack": ("ber.models.stack", "run"), "ce_export": ("ber.ce_export", "run"), "decode": ("ber.decode", "run"),
           "write": ("ber.decode", "write"), "report": ("ber.analysis", "run")}
 
 

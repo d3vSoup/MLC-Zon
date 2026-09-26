@@ -30,7 +30,7 @@ def write_preds(split, rows, p2, name=None):
 def run(force=False):
     if model_path(CFG["n_folds"] - 1).exists() and not force:
         return
-    fit(rounds=R2.get("num_boost_round"))
+    fit(rounds=R2.get("num_boost_round"), use_ce=R2.get("use_ce", False), extra=tuple(R2.get("extra", ())))
 
 
 # frac < 1 trains on that share of S1 (key-hashed) but still predicts every OOF row: learning-curve probe

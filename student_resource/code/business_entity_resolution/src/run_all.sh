@@ -16,6 +16,10 @@ run train
 run predict --split test
 run graph --split train
 run graph --split test
+run r2feats --split train
+run r2feats --split test
+run ce --split train     # no-op unless round2.use_ce
+run ce --split test
 run stack
 run decode
 run report

@@ -16,6 +16,14 @@ No network access is needed after the pip install. No external data, APIs, or ge
 
 Paths are set in `src/configs/default.yaml`, relative to `<root>`. Override the root with `BER_ROOT=/path`.
 
+## Cross-encoder scores (only if `round2.use_ce: true`)
+
+`ce_scores/ce_scores_{train,test}.parquet` (s1, cand, ce_p) ship with this folder. They come from
+`src/gpu/ce_train_predict.py` (xlm-roberta-base, MIT) run on 2x T4 GPUs (Kaggle), about X h per half, then
+`python -m ber.ce_ingest <dir_half1> <dir_half2>`. The scores are keyed by entity ids, so the CPU pipeline
+uses them whatever the row order of its candidate list. To regenerate them: `python -m ber.cli ce_export`,
+run the GPU script with `--half 1` and `--half 2`, then `ber.ce_ingest`.
+
 ## Run (CPU only)
 
 ```bash
@@ -28,7 +36,8 @@ PY=../.venv/bin/python python -m pytest -q tests
 
 Single stage: `$PY -m ber.cli <stage> [--split train|test] [--force]`.
 Stages in order (as in `run_all.sh`): `normalize, folds, block, blockreport, features, train` (round 1, 5 folds,
-OOF), `predict --split test`, `graph` (group features on pairs with round-1 p >= 0.01), `stack` (round 2, 3000
+OOF), `predict --split test`, `graph` (group features on pairs with round-1 p >= 0.01), `r2feats` (soft house-number + v2 name
+features on those pairs), `ce` (cross-encoder score, only if `round2.use_ce`), `stack` (round 2, 3000
 rounds), `decode` (isotonic + gate + expected-F, all out-of-fold), `report`, `write`. `eda` = Phase 0 facts.
 LightGBM runs with a fixed 16 threads (`n_jobs` in the config): its output changes with the thread count, so do not
 change it if you want byte-identical files.
