@@ -1,5 +1,13 @@
 # HANDOFF — read this first, then EXPERIMENTS.md
 
+## SUN 27 SEP 00:35 IST — LATEST (read docs/MORNING_BRIEF.md + docs/AUTO_RESULTS.md first)
+- Best public: blend_cal 0.985131. Night: names2c FAILED LOCO, CE2 half +0.00015 (< +0.0003 gate), Soup CE2 never
+  arrived, drop-format-features FAILED LOCO. **No new candidate.** Decode-rule LOCO: k = 1 best for an unseen country.
+- 05:30 upload blend_raw (France k 1) vs blend_cal; decision rules in docs/MORNING_BRIEF.md.
+- Freeze config: round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true, blend.unseen_k = A/B
+  winner; names2.by_group false; no CE2. Then backup.sh -> (Muaz "go freeze") delete work/ caches -> cleanroom full.
+- Disk ~5 GB free before work/ is deleted. Git: local commits since 21:00 NOT pushed (Muaz said no push tonight).
+
 ## SAT 26 SEP ~20:15 IST — CURRENT STATE (supersedes older sections where they differ)
 - **Deadline Sun 27 Sep 23:59 IST** (official). Upload budget: 1 Sat night (blend_cal, Razan), 5 on Sunday after ~05:30.
 - Public: ce_full_v1 0.980518; ce_half_v1 0.981; **blend_cal 0.985131 = best** (md5 0a0b14806bcddf3370258467ae3fddd9, rank ~110).
