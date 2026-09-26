@@ -1,4 +1,4 @@
-# AUTO RESULTS (Sun 00:03)
+# AUTO RESULTS (Sun 00:31)
 
 # Night results (scripted chain, Sat 26 -> Sun 27 Sep)
 
@@ -11,6 +11,7 @@
   - blend2_unseen_k0.184: md5 c838afa6f839a2fbd1e4dc620db1f61e | US k 1 empty 0.0575 links/S1 3.3877; France k 0.184 empty 0.0592 links/S1 3.1967; India k 1 empty 0.058 links/S1 3.3678
 - Phase A: docs/LOCO_ERRORS.md written
 - MORNING_BRIEF.md draft written
+- Phase B drop test (n_num_a, n_num_b, hn_in_other): FAIL | LOCO unseen US->IN 0.91571->0.91049, IN->US 0.96935->0.96660
 
 
 ## LOCO unseen side

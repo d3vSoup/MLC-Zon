@@ -34,5 +34,14 @@ is best for an unseen country. Phase B (drop format-count features) is being tes
 
 OOF (Razan's live S1, same rows): blend 0.99032 (US 0.99049, India 0.99007, singleton 0.99372).
 
-## Phase B
-(pending: LOCO drop test of n_num_a / n_num_b / hn_in_other, both directions)
+## Phase A / B (docs/LOCO_ERRORS.md)
+- Unseen-country errors are 4-15x the seen ones, with confident false positives: a ranking gap, not calibration.
+- Most-shifted features: house-number format (n_num_a/b, hn_in_other, hn_suffix; 0.6-1.0 SD).
+- Tested fixes: names2c (name priors per country group) LOCO -0.0007 / -0.0003; dropping the format-count features
+  LOCO -0.0052 / -0.0028. **Nothing passed the gates. No new candidate from the night.**
+- France addresses look US-like (one house number), so the India-unseen format shift overstates France's problem;
+  LOCO remains the best available proxy.
+
+## Final-config reminder (for the 12:00 freeze)
+round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true, blend.unseen_k = the A/B winner
+(1.0 for Branch A / tie; 0.184 or 0.5 for Branch B). names2.by_group stays false. No CE2.
