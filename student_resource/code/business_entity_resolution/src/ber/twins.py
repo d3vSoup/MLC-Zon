@@ -119,3 +119,33 @@ def run(model="lgbm2_ce", w=0.5, mode="asis"):
     print(json.dumps(res, indent=1))
     json.dump({"cells": rows, **res}, open(work("reports", "twins.json"), "w"), indent=1)
     te[["s1", "cand", "tw_num", "tw_gen"]].to_parquet(work("preds", "test_twin_flags.parquet"), index=False)
+
+
+# drop flagged twin links from a written candidate (same union candidate file, hard-linked); validate, md5, stats
+def apply(src="blend_cal", out="blend_cal_twin", sigs=("tw_num",)):
+    import hashlib
+    import os
+    from ber.io import path, source_file, to_id, validate
+    f = pd.read_parquet(work("preds", "test_twin_flags.parquet"))
+    drop = f[f[list(sigs)].any(axis=1)]
+    bad = set(zip(to_id(drop["s1"].values), to_id(drop["cand"].values)))
+    base = path("output_dir") / "candidates"
+    (base / out).mkdir(exist_ok=True)
+    n = 0
+    with open(base / src / "matching_results.tsv", encoding="utf-8") as fi, open(base / out / "matching_results.tsv", "w", encoding="utf-8") as fo:
+        fo.write(next(fi))
+        for line in fi:
+            s1, _, rest = line.rstrip("\n").partition("\t")
+            ids = [c for c in rest.split(",") if c and (s1, c) not in bad]
+            n += len([c for c in rest.split(",") if c]) - len(ids)
+            fo.write(f"{s1}\t{','.join(ids)}\n")
+    cf = base / out / "candidate_pairs.tsv"
+    cf.unlink(missing_ok=True)
+    os.link(base / src / "candidate_pairs.tsv", cf)
+    validate((base / out / "matching_results.tsv").resolve(), cf.resolve())
+    md5 = hashlib.md5(open(base / out / "matching_results.tsv", "rb").read()).hexdigest()
+    c = read_tsv(source_file("test", 1), usecols=["entity_id", "country"]).set_index("entity_id").country
+    by = pd.Series([c.get(s) for s, _ in bad]).value_counts().to_dict()
+    json.dump({"md5": md5, "src": src, "signatures": list(sigs), "links_dropped": n, "dropped_by_country": by},
+              open(base / out / "stats.json", "w"), indent=1)
+    print(f"{out}: dropped {n} twin links {by}; md5 {md5}")
