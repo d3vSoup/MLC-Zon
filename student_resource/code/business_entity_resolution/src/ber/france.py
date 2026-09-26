@@ -51,9 +51,9 @@ def score(d, info, m):
             "links_per_S1": round(float(k.mean()), 4)}
 
 
-def loco_rules(direction):
+def loco_rules(direction, extra="num_names2"):
     src = {"us2in": "US", "in2us": "India"}[direction]
-    d, info, gate, is_src = loco.prepare(f"loco_{direction}_num_names2", src)
+    d, info, gate, is_src = loco.prepare(f"loco_{direction}_{extra}", src)
     gm = loco.prepare.gate_models
     m_all = D.expf_mask(d, len(info["keys"]), gate)
     ds, is_ = subset(d, info, is_src)
@@ -80,5 +80,5 @@ def loco_rules(direction):
         dq, m = dec(du, iu, gm, k)
         res[f"grid_k{k}"] = {"k_link": k, **score(dq, iu, m)}
         print(f"  grid k={k}: {res[f'grid_k{k}']}", flush=True)
-    json.dump(res, open(work("reports", f"france_rules_{direction}.json"), "w"), indent=1)
+    json.dump(res, open(work("reports", f"france_rules_{direction}_{extra}.json"), "w"), indent=1)
     return res

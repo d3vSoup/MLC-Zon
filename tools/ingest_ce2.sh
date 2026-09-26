@@ -2,9 +2,10 @@
 # second cross-encoder (multilingual-e5-base, same halves + bands): keys its scores as ce2 in src/ce_scores/, then
 # tries (a) ce2_p as its own round-2 feature and (b) one ce_p = mean of both models; keeps the better OOF.
 # writes output/candidates/<name>/ (validated, md5 + per-country stats) from the winner. run through tools/queue.sh.
-# usage: tools/ingest_ce2.sh <name> <ce2_ankit_dir> <ce2_soup_dir>
+# usage: [EXTRA="r2_num r2_names2c"] tools/ingest_ce2.sh <name> <ce2_ankit_dir> <ce2_soup_dir>
 set -euo pipefail
 NAME=$1; shift
+EX=$(python3 -c "print(tuple('${EXTRA:-r2_num r2_names2}'.split()))")
 cd "$(dirname "$0")/../student_resource/code/business_entity_resolution/src"
 PY=../../../../.venv/bin/python
 $PY -m ber.ce_ingest --tag ce2 "$@"
@@ -15,7 +16,7 @@ for MIX in sep mean; do
   M=lgbm2_ce2_$MIX
   $PY -c "
 from ber.io import CFG; CFG['round2'].update(use_ce=True, ce_models=['ce', 'ce2'], ce_mix='$MIX')
-from ber.models import stack; stack.fit(name='$M', rounds=3000, test=True, use_ce=True, extra=('r2_num', 'r2_names2'))"
+from ber.models import stack; stack.fit(name='$M', rounds=3000, test=True, use_ce=True, extra=$EX)"
   $PY -c "
 from ber.io import CFG; CFG['decode']['model'] = '$M'
 import ber.decode as d; d.run()"

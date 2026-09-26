@@ -27,27 +27,40 @@ def norm2(raw):
 
 
 def _all_names(split):
-    t = pa.concat_tables([pq.read_table(work(split, f"norm_s{s}.parquet"), columns=["entity_id", "name_raw"])
+    t = pa.concat_tables([pq.read_table(work(split, f"norm_s{s}.parquet"), columns=["entity_id", "name_raw", "country"])
                           for s in (1, 2, 3)])
-    return to_key(t.column("entity_id").to_pandas()), t.column("name_raw").to_pylist()
+    return to_key(t.column("entity_id").to_pandas()), t.column("name_raw").to_pylist(), t.column("country").to_numpy(zero_copy_only=False)
 
 
-# extra name features for given cands rows (hard pairs); generic = token in > generic_df of S1 names (data-driven)
-def run(split, rows, out):
+# extra name features for given cands rows (hard pairs); generic = token in > generic_df of S1 names (data-driven).
+# by_group: generic set + IDF fitted within each country group (opaque key, the records' own country field), so a
+# country's features do not depend on which other countries share its split (train vs test mix skew)
+def run(split, rows, out, by_group=None):
+    by_group = CFG["names2"].get("by_group", False) if by_group is None else by_group
     with timed(f"names2 {split} normalize all names"):
-        keys, raw = _all_names(split)
+        keys, raw, ctry = _all_names(split)
         with Pool(CFG["n_jobs"]) as pool:
             v2 = pool.map(norm2, raw, chunksize=20000)
         s1 = keys // 10**10 == 1
         cv = CountVectorizer(token_pattern=r"\S+", binary=True, dtype=np.float32).fit(v2)
         X = cv.transform(v2).tocsr()
-        df = np.asarray(X.sum(0)).ravel()
-        w = np.sqrt(np.log(len(v2) / np.maximum(df, 1))).astype(np.float32)
-        Xw = (X @ sp.diags(w)).tocsr()
+        inv = {i: t for t, i in cv.vocabulary_.items()}
+        groups = [np.ones(len(v2), bool)] if not by_group else [ctry == c for c in pd.unique(ctry)]
+        wrow = np.zeros(len(v2), np.int32)  # which group's IDF weights / generic set a row uses
+        W, gens = [], []
+        for gi, g in enumerate(groups):
+            df = np.asarray(X[g].sum(0)).ravel()
+            W.append(np.sqrt(np.log(g.sum() / np.maximum(df, 1))).astype(np.float32))
+            s1_df = np.asarray(X[g & s1].sum(0)).ravel() / max((g & s1).sum(), 1)
+            gens.append({inv[i] for i in np.flatnonzero(s1_df > CFG["names2"]["generic_df"])})
+            wrow[g] = gi
+        W = np.vstack(W)
+        Xw = X.copy()
+        row_of_nnz = np.repeat(np.arange(X.shape[0]), np.diff(X.indptr))
+        Xw.data = (X.data * W[wrow[row_of_nnz], X.indices]).astype(np.float32)
         sq = np.asarray(Xw.multiply(Xw).sum(1)).ravel()
-        s1_df = np.asarray(X[s1].sum(0)).ravel() / s1.sum()
-        generic = {t for t, i in cv.vocabulary_.items() if s1_df[i] > CFG["names2"]["generic_df"]}
-        rare = [" ".join(t for t in n.split() if t not in generic) for n in v2]
+        rare = [" ".join(t for t in n.split() if t not in gens[wrow[i]]) for i, n in enumerate(v2)]
+        generic = [len(g) for g in gens]
         idx = pd.Index(keys)
     c = pq.read_table(work(split, "cands.parquet"), columns=["s1", "cand"]).take(pa.array(rows)).to_pandas()
     ia, ib = idx.get_indexer(c["s1"].values), idx.get_indexer(c["cand"].values)
@@ -68,4 +81,4 @@ def run(split, rows, out):
     for k in ("rare_tset", "rare_ratio"):
         f[k][empty] = np.nan  # a name made only of generic words has no rare part: missing, not mismatch
     pq.write_table(pa.table(f), out, compression="zstd")
-    print(f"names2 {split}: {len(c)} rows, {len(generic)} generic tokens (S1 df > {CFG['names2']['generic_df']})")
+    print(f"names2 {split}: {len(c)} rows, generic tokens per group {generic} (S1 df > {CFG['names2']['generic_df']}, by_group={by_group})")

@@ -209,7 +209,7 @@ def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None
         for e in extra:
             f = work("loco", direction, f"{e}.parquet")
             if not f.exists():
-                numbers.run("train", force=True, rows=rows, out=f) if e == "num" else names2.run("train", rows, f)
+                numbers.run("train", force=True, rows=rows, out=f) if e == "num" else names2.run("train", rows, f, by_group=(e == "names2c"))
             parts.append(pq.read_table(f))
     feats = [c for tb in parts for c in tb.column_names]
     n = len(d)
