@@ -29,7 +29,8 @@ def norm_check(pool, rng):
             idx = np.sort(rng.choice(f.metadata.num_rows, 50_000, replace=False))
             t = pq.read_table(work(split, f"norm_s{s}.parquet")).take(pa.array(idx)).to_pandas()
             new = pd.DataFrame(pool.map(_row, zip(t.name_raw, t.addr_raw, t.country), chunksize=2000), columns=COLS)
-            bad = {c: int((t[c].map(str).values != new[c].map(str).values).sum()) for c in COLS}
+            as_s = lambda x: str(list(x)) if not isinstance(x, str) and hasattr(x, "__len__") else str(x)  # array vs list print differently
+            bad = {c: int((t[c].map(as_s).values != new[c].map(as_s).values).sum()) for c in COLS}
             print(f"normalize {split} s{s}: rows differing per column (of 50k): {bad}", flush=True)
 
 
