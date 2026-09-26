@@ -268,6 +268,10 @@ def run(force=False):
     else:
         unseen_variants(model, w, mode, ks=(float(k),))
         src = path("output_dir") / "candidates" / f"blend_unseen_k{float(k):g}"
+    import hashlib
+    tgt = path("output_dir") / "matching_results.tsv"
+    if tgt.exists() and hashlib.md5(open(tgt, "rb").read()).hexdigest() == "e7dbc8357c3d2035228854ddf8497556":
+        raise SystemExit("refusing to overwrite the protected fallback output (main repo): use a clean-room clone")
     for f in ("matching_results.tsv", "candidate_pairs.tsv"):
         shutil.copyfile(src / f, path("output_dir") / f)
     validate((path("output_dir") / "matching_results.tsv").resolve(), (path("output_dir") / "candidate_pairs.tsv").resolve())
