@@ -59,7 +59,8 @@ def union(split, model):
     ph = np.r_[ph[keep], tp[~seen]]
     print(f"{split}: ours kept {int(keep.sum())} (of {len(op)}), both {int(hit.sum())}, theirs only {int((~seen).sum())}", flush=True)
     u = pd.DataFrame({"s1": s1, "cand": cand, "po": po, "ph": ph})
-    u = u[np.isin(u["s1"].values, D.s1_table(split)[0])].reset_index(drop=True)  # only this run's S1 (sample runs)
+    recs = np.concatenate([to_key(D.read_tsv(D.source_file(split, s), usecols=["entity_id"])["entity_id"]) for s in (2, 3)])
+    u = u[np.isin(u["s1"].values, D.s1_table(split)[0]) & np.isin(u["cand"].values, recs)].reset_index(drop=True)  # this run's ids only (sample runs)
     if drop is not None:
         u = u[~np.isin(u["s1"].values, drop)].reset_index(drop=True)
     return u
