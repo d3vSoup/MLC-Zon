@@ -36,7 +36,7 @@ def run(force=False):
 
 # frac < 1 trains on that share of S1 (key-hashed) but still predicts every OOF row: learning-curve probe
 # half = train + OOF only on that CE half of S1 (folds with no rows of it skipped; other rows keep round-1 p)
-def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False, extra=(), half=None):
+def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False, extra=(), half=None, over=None):
     d = load_r2("train", use_ce, extra)
     feats = [c for c in d.columns if c not in DROP]
     fold = fold_map()["fold"].reindex(d["s1"].values).values
@@ -50,6 +50,7 @@ def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False, extra=(), hal
     params = {k: v for k, v in p.items() if k not in ("num_boost_round", "early_stopping", "test_models")}
     params.update(seed=CFG["seed"], deterministic=True, force_row_wise=True, num_threads=CFG["n_jobs"],
                   verbose=-1, metric="binary_logloss")
+    params.update(over or {})  # seed-bagging variants: other seed / feature_fraction / bagging
     full = lgb.Dataset(d[feats].to_numpy(np.float32), y, feature_name=feats, params=params,
                        free_raw_data=True).construct()
     X = d[feats]
@@ -83,9 +84,15 @@ def load_r2(split, use_ce=False, extra=()):
         assert len(x) == len(d), f"{e} not row-aligned with r2"
         d = pd.concat([d, x], axis=1)
     if use_ce:
-        ce = pd.read_parquet(work(split, "ce_p.parquet"))
-        d["ce_p"] = pd.Series(ce["ce_p"].values, index=ce["row"].values).reindex(d["row"].values).values
-        print(f"{split}: ce_p present on {d.ce_p.notna().mean():.3f} of round-2 rows", flush=True)
+        tags = R2.get("ce_models", ["ce"])
+        for tag in tags:
+            ce = pd.read_parquet(work(split, f"{tag}_p.parquet"))
+            d[f"{tag}_p"] = pd.Series(ce[f"{tag}_p"].values, index=ce["row"].values).reindex(d["row"].values).values
+            print(f"{split}: {tag}_p present on {d[f'{tag}_p'].notna().mean():.3f} of round-2 rows", flush=True)
+        if R2.get("ce_mix") == "mean" and len(tags) > 1:  # one CE column = mean of the models that scored the pair
+            cols = [f"{t}_p" for t in tags]
+            d["ce_p"] = d[cols].mean(axis=1).astype(np.float32)
+            d = d.drop(columns=[c for c in cols if c != "ce_p"])
     return d
 
 
@@ -95,3 +102,13 @@ def predict_test(name=None, use_ce=False, extra=(), folds=None):
     X = d[ms[0].feature_name()]
     write_preds("test", d["row"].values, np.mean([m.predict(X, num_threads=CFG["n_jobs"]) for m in ms], axis=0),
                 name)
+
+
+# mean of several round-2 runs (same rows): oof + test preds -> <out> (seed bagging)
+def blend(names, out):
+    for tag in ("oof", "test"):
+        acc = 0.0
+        for n in names:  # one p column at a time (153M rows each)
+            acc = acc + pq.read_table(work("preds", f"{tag}_{n}.parquet"), columns=["p"]).column(0).to_numpy().astype(np.float64)
+        t = pq.read_table(work("preds", f"{tag}_{names[0]}.parquet"))
+        pq.write_table(t.set_column(2, "p", pa.array((acc / len(names)).astype(np.float32))), work("preds", f"{tag}_{out}.parquet"))
