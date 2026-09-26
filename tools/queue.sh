@@ -2,7 +2,7 @@
 # memory-safe serial job queue. one heavy job at a time, each in its own systemd user unit
 # (MemoryMax cap, low CPU priority), so a runaway job dies alone and the log says why.
 # runner is itself a systemd user unit: survives Claude Code / terminal exit.
-#   tools/queue.sh add <name> '<shell command, run from src/>'   # queue a job, start runner if idle
+#   tools/queue.sh add <name> '<shell command, run from src/>' [mem cap, default 11G]  # queue a job, start runner if idle
 #   tools/queue.sh status                                         # log tail + what is waiting
 # log: student_resource/work/queue/queue.log (START / END with runtime, peak RAM, result)
 set -euo pipefail
@@ -17,10 +17,10 @@ avail_gb() { awk '/MemAvailable/ {print int($2 / 1048576)}' /proc/meminfo; }
 
 case ${1:-} in
 add)
-  name=$2; cmd=$3
+  name=$2; cmd=$3; mem=${4:-$JOB_MAX}
   f="$Q/todo/$(date +%s%N)_$name.sh"
-  printf 'cd %q\nexec >> %q 2>&1\nset -euo pipefail\nexport PYTHONUNBUFFERED=1\necho "== $(date) %s"\n%s\n' \
-    "$SRC" "$Q/logs/$name.log" "$name" "$cmd" > "$f"
+  printf '# mem=%s\ncd %q\nexec >> %q 2>&1\nset -euo pipefail\nexport PYTHONUNBUFFERED=1\necho "== $(date) %s"\n%s\n' \
+    "$mem" "$SRC" "$Q/logs/$name.log" "$name" "$cmd" > "$f"
   log "QUEUED $name"
   systemctl --user is-active -q ber-queue ||
     systemd-run --user --unit=ber-queue --collect -q -p WorkingDirectory="$ROOT" bash "$ROOT/tools/queue.sh" run
@@ -34,8 +34,9 @@ run)
       [ $((waited % 10)) -eq 0 ] && log "WAIT $name: only $(avail_gb) GB free (< $MIN_FREE_GB)"
       sleep 60; waited=$((waited + 1))
     done
-    log "START $name (free $(avail_gb) GB)"
-    stats=$(systemd-run --user --wait --collect -p MemoryMax=$JOB_MAX -p MemorySwapMax=2G -p Nice=10 \
+    log "START $name (free $(avail_gb) GB, cap $(sed -n 's/^# mem=//p' "$f"))"
+    mem=$(sed -n 's/^# mem=//p' "$f")
+    stats=$(systemd-run --user --wait --collect -p MemoryMax=${mem:-$JOB_MAX} -p MemorySwapMax=2G -p Nice=10 \
       -p CPUWeight=50 bash "$f" 2>&1 >/dev/null) && rc=0 || rc=$?
     grep -q "code=exited, status=0/SUCCESS" <<< "$stats" || rc=${rc/#0/1}  # stopped by signal = not ok
     res=$(sed -n 's/.*Finished with result: //p' <<< "$stats")
