@@ -147,9 +147,9 @@ def final(model, w, mode, name):
     load = lambda s: owned(u_tr, mix(u_tr, w, mode), "train", live) if s == "train" else owned(u_te, mix(u_te, w, mode), "test")
     cal = C.fit(load)
     d, info = owned(u_te, mix(u_te, w, mode), "test")
-    q = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb")).predict(d["p"].values)
     k = pd.Series(info["country"]).map(cal["k"]).fillna(1.0).values[d["code"].values]
-    d["q"] = q * k / (q * k + 1 - q)
+    p = d["p"].values
+    d["q"] = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb")).predict(p * k / (p * k + 1 - p))
     gate = D.gate_test(D.gate_frame(d, info, "test"), range(CFG["n_folds"]))
     mask = D.expf_mask(d, len(info["keys"]), gate)
     out = Path(work("..", "output", "candidates", name, "x")).parent.resolve()

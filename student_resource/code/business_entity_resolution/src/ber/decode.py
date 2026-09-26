@@ -271,11 +271,11 @@ def write(force=False, out_dir=None, unseen=None, kc=None):
     best, par = cfg["chosen"], cfg["decoders"][cfg["chosen"]]
     d, info = owned("test")
     n = len(info["keys"])
-    d["q"] = pickle.load(open(work("models", f"iso_{NAME}.pkl"), "rb")).predict(d["p"].values)
-    if kc:  # label-free test-time calibration: odds of q scaled by k of the S1's country (ber.calibrate)
+    if kc:  # label-free test-time calibration: odds of p scaled by k of the S1's country, before isotonic (ber.calibrate)
         k = pd.Series(info["country"]).map(kc).fillna(1.0).values[d["code"].values]
-        d["q"] = d["q"].values * k / (d["q"].values * k + 1 - d["q"].values)
+        d["p"] = d["p"].values * k / (d["p"].values * k + 1 - d["p"].values)
         print(f"calibration k by country: {kc}")
+    d["q"] = pickle.load(open(work("models", f"iso_{NAME}.pkl"), "rb")).predict(d["p"].values)
     gate = gate_test(gate_frame(d, info, "test"), cfg.get("folds", range(CFG["n_folds"])))
     if unseen:  # tempering learned only from leave-one-country-out; only for countries absent from train
         seen = set(read_tsv(source_file("train", 1), usecols=["country"])["country"])

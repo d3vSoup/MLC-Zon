@@ -7,7 +7,8 @@ import pandas as pd
 import ber.decode as D
 from ber.io import CFG, read_tsv, source_file, work
 
-# label-free test-time calibration (port of the QTpies calibrate.py, AUDIT 3.9) on calibrated q:
+# label-free test-time calibration (port of the QTpies calibrate.py, AUDIT 3.9) on the raw model p (smooth; the
+# isotonic q is a step function and failed the fold-vs-fold null test), k applied to p before isotonic:
 # seen countries: difference-in-differences prior shift vs the least-shifted seen country (anchor, k = 1);
 # countries absent from train: odds scaled so their empty-S1 rate = seen countries' rate + DELTA (open-set rule).
 EDGES = 1 / (1 + np.exp(-np.linspace(-4.6, 9.2, 47)))  # q 0.01 .. 0.9999, 0.3 logit wide
@@ -64,8 +65,8 @@ def subset(d, info, keep):
     return d, {k: v[keep] for k, v in info.items()}
 
 
-def empty_rate(d, info, k, folds):
-    d = d.assign(q=odds(d["q0"].values, k))
+def empty_rate(d, info, k, folds, iso):
+    d = d.assign(q=iso.predict(odds(d["p"].values, k)))
     gate = D.gate_test(D.gate_frame(d, info, "test"), folds)
     mask = D.expf_mask(d, len(info["keys"]), gate)
     return 1 - (np.bincount(d["code"].values[mask], minlength=len(info["keys"])) > 0).mean()
@@ -79,10 +80,7 @@ def fit(load=None):
     folds = cfg.get("folds", list(range(CFG["n_folds"])))
     dt, it = load("train")
     f = it["fold"][dt["code"].values]
-    q = np.empty(len(dt))
-    for k in np.unique(f):  # cross-fit isotonic, as decode does (OOF q honest)
-        m = f == k
-        q[m] = D.iso().fit(dt["p"].values[~m], dt["label"].values[~m]).predict(dt["p"].values[m])
+    q = dt["p"].values
     c_tr = it["country"][dt["code"].values]
     seen = sorted(set(it["country"]))
     n_fold = {k: {c: int(((it["fold"] == k) & (it["country"] == c)).sum()) for c in seen} for k in (0, 1)}
@@ -92,28 +90,28 @@ def fit(load=None):
     q_tr = q
     del dt, it, q
     d, info = load("test")
-    d["q0"] = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb")).predict(d["p"].values)
+    iso = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb"))
     c_te = info["country"][d["code"].values]
     n_te = {c: int((info["country"] == c).sum()) for c in set(info["country"])}
     print("test vs train OOF:", flush=True)
-    anchor, ks = did(d["q0"].values[np.isin(c_te, seen)], c_te[np.isin(c_te, seen)], n_te, q_tr, c_tr, n_tr)
+    anchor, ks = did(d["p"].values[np.isin(c_te, seen)], c_te[np.isin(c_te, seen)], n_te, q_tr, c_tr, n_tr)
     emp = {}
     for c in seen:
         dc, ic = subset(d, info, info["country"] == c)
-        emp[c] = empty_rate(dc, ic, ks[c], folds)
+        emp[c] = empty_rate(dc, ic, ks[c], folds, iso)
     ref = sum(emp[c] * n_te[c] for c in seen) / sum(n_te[c] for c in seen)
     for c in sorted(set(info["country"]) - set(seen)):  # unseen: continuous k by bisection on log k
         dc, ic = subset(d, info, info["country"] == c)
-        e1, target = empty_rate(dc, ic, 1.0, folds), ref + DELTA
+        e1, target = empty_rate(dc, ic, 1.0, folds, iso), ref + DELTA
         lo, hi = np.log(0.005), 0.0
         if e1 >= target:
             ks[c] = 1.0
         else:
             for _ in range(18):
                 mid = (lo + hi) / 2
-                lo, hi = (mid, hi) if empty_rate(dc, ic, np.exp(mid), folds) > target else (lo, mid)
+                lo, hi = (mid, hi) if empty_rate(dc, ic, np.exp(mid), folds, iso) > target else (lo, mid)
             ks[c] = float(np.exp(hi))
-        emp[c] = empty_rate(dc, ic, ks[c], folds)
+        emp[c] = empty_rate(dc, ic, ks[c], folds, iso)
         print(f"{c}: seen empty {ref:.4f}, target {target:.4f}, empty at k=1 {e1:.4f}, k={ks[c]:.4f} -> {emp[c]:.4f}", flush=True)
     out = {"anchor": anchor, "k": ks, "null_k": null, "empty": emp, "seen_empty": ref, "delta": DELTA}
     json.dump(out, open(work("reports", f"calibrate_{D.NAME}.json"), "w"), indent=1)
