@@ -196,3 +196,25 @@ def brief():
 """ + "\n".join(rows) + "\n"
     open(ROOT.parent / "docs" / "MORNING_BRIEF.md", "w").write(txt)
     log("- MORNING_BRIEF.md draft written")
+
+
+# docs/AUTO_RESULTS.md: gates, OOF/LOCO numbers, every candidate folder with md5 + France stats (the brief if offline)
+def auto_results():
+    import datetime
+    base = ROOT / "output" / "candidates"
+    lines = [f"# AUTO RESULTS ({datetime.datetime.now():%a %H:%M})\n", open(RES).read() if RES.exists() else "", "\n## LOCO unseen side\n"]
+    for d in ("us2in", "in2us"):
+        for t in ("num_names2", "num_names2c"):
+            f = work("reports", f"loco_{d}_{t}.json")
+            if f.exists():
+                j = json.load(open(f))
+                k = [x for x in j if "unseen" in x][0]
+                lines.append(f"- {d} {t}: unseen F0.5 {j[k]['F0.5']}, singleton {j[k]['singleton_only']}, precision {j[k]['precision']}")
+    lines.append("\n## Candidate folders\n\n| folder | md5 | France k | France empty | France links/S1 |\n|---|---|---|---|---|")
+    for p in sorted(base.iterdir()):
+        f = p / "stats.json"
+        if f.exists():
+            st = json.load(open(f))
+            fr = st.get("France", {})
+            lines.append(f"| {p.name} | {st.get('md5', '-')} | {fr.get('k', '-')} | {fr.get('empty_share', '-')} | {fr.get('links_per_S1', '-')} |")
+    open(ROOT.parent / "docs" / "AUTO_RESULTS.md", "w").write("\n".join(lines) + "\n")
