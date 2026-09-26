@@ -35,30 +35,69 @@ def gate_names2c():
         f"IN->US 0.96935->{l2:.5f} | feature set {dec['extra'][1]}")
 
 
+SOUP_DIR, SOUP_MD5 = "/home/Muaz/Downloads/ce2_soup", "/home/Muaz/Downloads/ce2_md5_soup.txt"
+
+
+# integrity of one CE2 half: 79 md5s vs the list, 27 train + 52 test parts, rows = band (train: the other half), unique,
+# no NaN, 100% key join; plus the signal vs CE1 on the scored half (labels)
+def integrity(d, md5file, half_scored, ce1_dir):
+    import glob
+    import hashlib
+    import os
+    import numpy as np
+    import pandas as pd
+    from sklearn.metrics import roc_auc_score
+    fs = sorted(glob.glob(f"{d}/**/*_part*.parquet", recursive=True))
+    if not os.path.exists(md5file) or len(fs) != 79:
+        log(f"- CE2 integrity {d}: files {len(fs)}, md5 list {'found' if os.path.exists(md5file) else 'MISSING'} -> FAIL")
+        return False
+    want = {l.split()[1].split("/")[-1]: l.split()[0] for l in open(md5file) if l.strip()}
+    got = {os.path.basename(f): hashlib.md5(open(f, "rb").read()).hexdigest() for f in fs}
+    tr = pd.concat([pd.read_parquet(f) for f in fs if "/train_" in f or os.path.basename(f).startswith("train_")])
+    te = pd.concat([pd.read_parquet(f) for f in fs if os.path.basename(f).startswith("test_")])
+    bt = pd.read_parquet(work("ce", "ce_band_train.parquet"), columns=["pair_id", "label", "half"])
+    be = pd.read_parquet(work("ce", "ce_band_test.parquet"), columns=["pair_id"])
+    band = bt[bt.half == half_scored]
+    ok = (want == got and tr.pair_id.is_unique and te.pair_id.is_unique and not tr.ce_p.isna().any() and not te.ce_p.isna().any()
+          and set(tr.pair_id) == set(band.pair_id) and set(te.pair_id) == set(be.pair_id))
+    c1 = pd.concat([pd.read_parquet(f) for f in glob.glob(f"{ce1_dir}/**/train_h*_part*.parquet", recursive=True)]).rename(columns={"ce_p": "ce1"})
+    m = band.merge(c1, on="pair_id").merge(tr, on="pair_id")
+    log(f"- CE2 integrity {d}: {'PASS' if ok else 'FAIL'} | md5 {sum(want.get(k) == v for k, v in got.items())}/79, rows train {len(tr)} "
+        f"(band H{half_scored} {len(band)}), test {len(te)} | signal on H{half_scored}: AUC CE1 {roc_auc_score(m.label, m.ce1):.5f} "
+        f"vs CE2 {roc_auc_score(m.label, m.ce_p):.5f}, corr {np.corrcoef(m.ce1, m.ce_p)[0, 1]:.4f}")
+    return ok
+
+
+# CE2 ingest: FULL (both halves; test = mean of both models, as ce_full_v1) if Soup's half passes integrity, else H2-only
 def ce2_half():
     import ber.ce_ingest as C
     from ber.models import stack
     dec = json.load(open(work("reports", "night_names2c.json")))
     ex = tuple(dec["extra"])
-    C.collect([CE2_DIR], "ce2")
+    full = integrity(SOUP_DIR, SOUP_MD5, 1, "/home/Muaz/Downloads/ce_scores_soup")
+    C.collect([CE2_DIR, SOUP_DIR] if full else [CE2_DIR], "ce2")
     CFG["round2"].update(use_ce=True, ce_models=["ce2"])
     C.run("train", force=True)
     C.run("test", force=True)
-    base = "lgbm2_ceh" if ex[1] == "r2_names2" else "lgbm2_cech"
-    fits = ([] if base == "lgbm2_ceh" else [(base, ["ce"])]) + [("lgbm2_ce2h", ["ce", "ce2"])]
-    for name, tags in fits:
+    if full:  # baseline = the full no-CE2 model of the passing feature set (same rows: all S1)
+        base, name, half = dec["full"], "lgbm2_ce2f", None
+        fits = [(name, ["ce", "ce2"])]
+    else:
+        base, name, half = ("lgbm2_ceh" if ex[1] == "r2_names2" else "lgbm2_cech"), "lgbm2_ce2h", 2
+        fits = ([] if base == "lgbm2_ceh" else [(base, ["ce"])]) + [(name, ["ce", "ce2"])]
+    for n, tags in fits:
         CFG["round2"].update(ce_models=tags, ce_mix="sep")
-        stack.fit(name=name, rounds=3000, test=(name == "lgbm2_ce2h"), use_ce=True, extra=ex, half=2)  # baseline: OOF only (disk)
-        CFG["decode"]["half"] = 2
-        D.NAME = name
+        stack.fit(name=n, rounds=3000, test=(n == name), use_ce=True, extra=ex, half=half)
+        CFG["decode"]["half"] = half
+        D.NAME = n
         D.run()
-    g = oof("lgbm2_ce2h")["overall"] - oof(base)["overall"]
+    g = oof(name)["overall"] - oof(base)["overall"]
     ok = g >= 0.0003
-    dec2 = {"pass": ok, "model": "lgbm2_ce2h" if ok else dec["full"], "half": 2 if ok else None}
+    dec2 = {"pass": ok, "model": name if ok else dec["full"], "half": half if ok else None, "mode": "full" if full else "half"}
     json.dump(dec2, open(work("reports", "night_ce2.json"), "w"))
-    log(f"- CE2 half gate: {'PASS' if ok else 'FAIL'} | H2 OOF {base} {oof(base)['overall']:.5f} vs lgbm2_ce2h "
-        f"{oof('lgbm2_ce2h')['overall']:.5f} ({g:+.5f}; US {oof('lgbm2_ce2h')['US'] - oof(base)['US']:+.5f}, India "
-        f"{oof('lgbm2_ce2h')['India'] - oof(base)['India']:+.5f}) | blend model {dec2['model']}")
+    log(f"- CE2 {dec2['mode']} gate: {'PASS' if ok else 'FAIL'} | OOF ({'all S1' if full else 'H2 S1'}) {base} {oof(base)['overall']:.5f} vs "
+        f"{name} {oof(name)['overall']:.5f} ({g:+.5f}; US {oof(name)['US'] - oof(base)['US']:+.5f}, India "
+        f"{oof(name)['India'] - oof(base)['India']:+.5f}) | blend model {dec2['model']}")
 
 
 def reblend():
@@ -66,9 +105,9 @@ def reblend():
     m, half = dec2["model"], dec2["half"]
     B.final(m, 0.5, "asis", "blend2", half=half)
     B.unseen_variants(m, 0.5, "asis", ks=(0.184,), name="blend2")
-    cmp = B.compare(["lgbm2_ce", m], half=2)  # same row set: H2 live S1 (the CE2 half)
+    cmp = B.compare(["lgbm2_ce", m], half=half)  # same row set: live S1 (H2 only if the model is half-trained)
     base = ROOT / "output" / "candidates"
-    log(f"- blend2 (model {m}, w 0.5): OOF on H2 live S1 vs blend_cal's model: {cmp['lgbm2_ce']['overall']:.5f} -> "
+    log(f"- blend2 (model {m}, w 0.5): OOF on {'H2 ' if half else ''}live S1 vs blend_cal's model: {cmp['lgbm2_ce']['overall']:.5f} -> "
         f"{cmp[m]['overall']:.5f} ({cmp[m]['overall'] - cmp['lgbm2_ce']['overall']:+.5f})")
     for n in ("blend2_raw", "blend2_cal", "blend2_unseen_k0.184"):
         f = base / n / "matching_results.tsv"
