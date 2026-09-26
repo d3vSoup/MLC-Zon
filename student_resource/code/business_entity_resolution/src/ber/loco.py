@@ -144,6 +144,7 @@ def prepare(name, src):
         gate[v] = m.predict(g.loc[v, D.GATE_FEATS])
         gm.append(m)
     gate[~is_src] = np.mean([m.predict(g.loc[~is_src, D.GATE_FEATS]) for m in gm], axis=0)
+    prepare.gate_models = gm  # for decode-rule experiments (ber.france)
     return d, info, gate, is_src
 
 
@@ -194,7 +195,7 @@ if __name__ == "__main__":
 
 # round-2 variant on an existing LOCO run: extra feature files, pseudo-labels on the unseen country,
 # and/or per-country percentile copies of chosen features (qnorm)
-def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None, synth_w=1.0):
+def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None, synth_w=1.0, keep=False):
     src = {"us2in": "US", "in2us": "India"}[direction]
     rounds = rounds or CFG["lgbm"]["num_boost_round"]
     s1 = read_tsv(source_file("train", 1), usecols=["entity_id", "country"])
@@ -270,7 +271,8 @@ def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None
     res = evaluate(f"loco_{tag}", src, direction)
     json.dump(res, open(work("reports", f"loco_{tag}.json"), "w"), indent=1)
     print(tag, {k: {x: v[x] for x in ("F0.5", "singleton_only", "precision")} for k, v in res.items()})
-    work("preds", f"oof_loco_{tag}.parquet").unlink()
+    if not keep:  # keep=True leaves the preds for decode-rule experiments (ber.france)
+        work("preds", f"oof_loco_{tag}.parquet").unlink()
 
 
 # run inside the synth root (BER_ROOT): score synthetic pairs with the real source-country fold-0 round-1 model,
