@@ -48,7 +48,7 @@ def ce2_half():
     fits = ([] if base == "lgbm2_ceh" else [(base, ["ce"])]) + [("lgbm2_ce2h", ["ce", "ce2"])]
     for name, tags in fits:
         CFG["round2"].update(ce_models=tags, ce_mix="sep")
-        stack.fit(name=name, rounds=3000, test=True, use_ce=True, extra=ex, half=2)
+        stack.fit(name=name, rounds=3000, test=(name == "lgbm2_ce2h"), use_ce=True, extra=ex, half=2)  # baseline: OOF only (disk)
         CFG["decode"]["half"] = 2
         D.NAME = name
         D.run()

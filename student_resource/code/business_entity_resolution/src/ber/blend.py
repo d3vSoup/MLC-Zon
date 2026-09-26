@@ -157,7 +157,9 @@ def final(model, w, mode, name, base="ce_full_v1", half=None):
     del u_tr
     d, info = owned(u_te, mix(u_te, w, mode), "test")
     iso = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb"))
-    raw_dir = write_out(d, info, iso, {}, u_te, model, f"{name}_raw", {"oof_live": oof, "w": w, "mode": mode}, base)
+    same = path("output_dir") / "candidates" / "blend_raw"  # same union candidate set (our cands + theirs): hard link
+    raw_dir = write_out(d, info, iso, {}, u_te, model, f"{name}_raw", {"oof_live": oof, "w": w, "mode": mode}, base,
+                        cand_from=same if name != "blend" and (same / "candidate_pairs.tsv").exists() else None)
     meta = {"oof_live": oof, "w": w, "mode": mode, "calibration": cal}
     write_out(d, info, iso, cal["k_unseen_only"], u_te, model, f"{name}_cal", meta, base, cand_from=raw_dir)
     if "k_full" in cal:  # null test passed: seen-country DiD too (used only if the anchor passes the report's gate)
