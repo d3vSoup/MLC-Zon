@@ -25,7 +25,6 @@ for tag, root in (('real', '$W'), ('synth', '$SR/work')):
                    for i in g], ignore_index=True)
     c = read_tsv(source_file('train', 1), usecols=['entity_id', 'country'])
     x['country'] = pd.Series(c.country.values, index=to_key(c.entity_id)).reindex(x.s1.values).values
-    x = x.groupby(['country', 'label'], group_keys=False).apply(lambda g: g.sample(min(len(g), 200000), random_state=0))
     out.append(x.groupby(['country', 'label'])[F].mean().assign(src=tag))
 print(pd.concat(out).reset_index().set_index(['country', 'label', 'src']).sort_index().round(3).to_string())"
 for D in us2in in2us; do
