@@ -1,6 +1,6 @@
 # HANDOFF — read this first, then EXPERIMENTS.md
 
-State at **Sat 26 Sep 2026 ~11:00 IST**. Amazon ML Challenge 2026, Business Entity Resolution.
+State at **Sat 26 Sep 2026 ~14:45 IST**. Amazon ML Challenge 2026, Business Entity Resolution.
 Deadline **Sun 27 Sep 23:59 IST**. Muaz = lead/integrator. Razan = only uploader (Google Drive, md5-checked).
 Soup + Ankit = cross-encoder (CE) runs on Kaggle GPUs. Repo: origin = `razancodes/MLC-Zon` (private), branch `main`.
 
@@ -9,7 +9,9 @@ Soup + Ankit = cross-encoder (CE) runs on Kaggle GPUs. Repo: origin = `razancode
 | what | path | md5 | score |
 |---|---|---|---|
 | fallback (never touch) | `student_resource/output/matching_results.tsv` (copy in `work/fallback/`) | e7dbc8357c3d2035228854ddf8497556 | public 0.965, OOF 0.9773 |
-| **current best = upload baseline** | `student_resource/output/candidates/numbers_france_v1/matching_results.tsv` | cd673b353beb3e431f0a23da1ce3bd40 | **public 0.977**, OOF 0.98233 |
+| previous best | `student_resource/output/candidates/numbers_france_v1/matching_results.tsv` | cd673b353beb3e431f0a23da1ce3bd40 | **public 0.977**, OOF 0.98233 |
+| **current best = upload baseline** | `student_resource/output/candidates/ce_half_v1/matching_results.tsv` | 7083a967b1c2bd32abbd39f00bad72f5 | **public 0.981**, OOF 0.98744 (H2) |
+| next upload (CE both halves) | `student_resource/output/candidates/ce_full_v1/matching_results.tsv` | 3a0d4c771a1203acf207811ee2c8a2fe | public pending, OOF **0.98765** |
 | candidate set (all runs share it) | `student_resource/output/candidate_pairs.tsv` | — | PC 0.9825 |
 
 Leaderboard (Sat morning): rank 1 ~0.988, rank 50 ~0.984, us ~200th. Target: +0.007. France (15% of test, unseen
@@ -39,26 +41,28 @@ features (`r2feats`), 3000 rounds = model `lgbm2_x` -> decode: owner argmax, iso
 - Edit `tools/queue.sh` only by writing a temp file + `mv` (the running runner reads the old inode).
 
 ## Running / queued now (check `tools/queue.sh status`)
-1. `loco_us2in_x_qn`, `loco_in2us_x_qn`: per-country percentile copies of the top-15 similarity features
-   (`ber.loco.variant(..., qnorm=...)`). Baseline to beat (unseen side): **0.91571 (US->IN) / 0.96935 (IN->US)**;
-   in-distribution: US 0.98531 / India 0.97808. Rule: if >= +0.005 unseen in BOTH directions and in-distribution not
-   hurt -> propose full retrain `numbers_france_v2` with ETA (needs the same percentile features in `r2feats` for
-   train + test, computed per country on each split's own rows, no labels).
-2. `repro_check` (`tools/repro_check.py`): re-normalize 50k rows per file + re-block 20k records per country with
-   today's code vs cached files. Why: blocking probe re-block matched production pairs only 98.5% (US) / 97.8% (IN).
-   If the differences are top-10 boundary ties -> harmless-ish (clean room may still differ slightly). If real ->
-   find the code drift before Sunday.
+- `seed_bag` (`tools/seed_bag.sh lgbm2_ce ce_full_bag_v1`): 3 extra round-2 seeds (other feature/bagging fractions),
+  mean with lgbm2_ce. Kept only if OOF gain >= +0.0005. Ends ~16:30.
+- Done today: quantile LOCO dropped (-0.0014); repro_check = blocking 100% same, normalize 0 diff (no drift);
+  CE half 1 (+0.0051 H2 OOF, public 0.981); CE full (OOF 0.98765). Details in EXPERIMENTS.md.
+
+## Cross-encoder round 2 (CE2, for Soup + Ankit)
+- Model `intfloat/multilingual-e5-base` (MIT), seed 43, SAME halves and bands as CE1: Ankit `--half 1`, Soup
+  `--half 2`, script `src/gpu/ce_train_predict.py --model intfloat/multilingual-e5-base --seed 43`.
+- Deliver the `pred/` parts (`train_h{1,2}_part*.parquet`, `test_h{1,2}_part*.parquet`) + an md5 list
+  (`md5sum pred/*`) as `ce2_ankit` / `ce2_soup`. Freeze Sun 12:00: CE2 is used only if ingested + validated by then.
+- Ingest (Muaz): verify md5 + rows (train H2 5,394,755 from Ankit, H1 5,388,242 from Soup; test 10,319,014 each),
+  then `tools/queue.sh add ce2 "bash $PWD/tools/ingest_ce2.sh ce2_v1 <ce2_ankit_dir> <ce2_soup_dir>"`: tries ce2_p as
+  its own feature and the mean of both CEs, keeps the better OOF, writes `output/candidates/ce2_v1/`.
+- CE scores live in `src/ce_scores/` (ce_scores_*, ce2_scores_*), gitignored, shipped in the zip.
 
 ## Open items
-- **CE (Retrain B)**: not in Drive yet (`ce_outputs/ankit`, `ce_outputs/soup`). When there: verify md5s, then
-  `tools/queue.sh add retrain_b "bash $PWD/tools/ingest_ce.sh ce_v1 <ankit_dir> <soup_dir>"`. It keys scores by ids
-  into `code/business_entity_resolution/ce_scores/`, trains `lgbm2_ce` with extras, writes `output/candidates/ce_v1/`.
-  Report OOF overall / per country / singleton, loss buckets, per-country test stats; recommend upload or not vs 0.977.
-  To adopt: config `round2.name: lgbm2_ce`, `use_ce: true`, `decode.model: lgbm2_ce`; ship `ce_scores/` in the zip.
+- **CE adoption for the final run**: config `round2.name: lgbm2_ce`, `use_ce: true`, `decode.model: lgbm2_ce`
+  (+ `ce_models` / `ce_mix` if CE2 wins). Set when the final config is picked Sun 10:00.
 - Pseudo-labelling: DROPPED (sim -0.007 / -0.009). Unseen calibration correction: NOT adopted (+0.001). Blocking
   options: NOT built (best ceiling +0.0022 for 3x pairs). Nothing of these needs disclosure.
-- Doc (`student_resource/Documentation_template.md`) not filled yet: disclose dictionaries (`ber/dictionaries.py`),
-  indic-transliteration (MIT, installed without extras), sparse_dot_topn (Apache-2.0), xlm-roberta-base (MIT) if CE used.
+- Doc draft done (`student_resource/Documentation_template.md`): fill [TO CONFIRM] / [FINAL] slots. Zip:
+  `tools/make_zip.sh <team> [tsv]` (dry run 1.0 GB, exact tree). Backup: `tools/backup.sh <final tsv> <model>`.
 
 ## Sunday plan (decided; also in memory `final-day-plan`)
 - **12:00 freeze**: everything for the final model merged.
