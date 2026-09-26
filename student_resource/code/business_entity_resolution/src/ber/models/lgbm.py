@@ -16,8 +16,11 @@ def fold_map():
     return f
 
 
+# row groups in file order (iter_batches kept ~90 MB per batch alive: 153M rows ran into the 11G cap)
 def batches(split, cols=None):
-    return pq.ParquetFile(work(split, "feats.parquet")).iter_batches(batch_size=CFG["features"]["chunk"], columns=cols)
+    pf = pq.ParquetFile(work(split, "feats.parquet"))
+    for i in range(pf.num_row_groups):
+        yield from pf.read_row_group(i, columns=cols).to_batches()
 
 
 def model_path(k):

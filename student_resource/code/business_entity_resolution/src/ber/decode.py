@@ -266,12 +266,16 @@ def run(force=False):
 
 
 # apply the chosen decoder to test; write both TSVs (or only matching into out_dir, candidates reused); validator
-def write(force=False, out_dir=None, unseen=None):
+def write(force=False, out_dir=None, unseen=None, kc=None):
     cfg = json.load(open(work("reports", f"decode_{NAME}.json")))
     best, par = cfg["chosen"], cfg["decoders"][cfg["chosen"]]
     d, info = owned("test")
     n = len(info["keys"])
     d["q"] = pickle.load(open(work("models", f"iso_{NAME}.pkl"), "rb")).predict(d["p"].values)
+    if kc:  # label-free test-time calibration: odds of q scaled by k of the S1's country (ber.calibrate)
+        k = pd.Series(info["country"]).map(kc).fillna(1.0).values[d["code"].values]
+        d["q"] = d["q"].values * k / (d["q"].values * k + 1 - d["q"].values)
+        print(f"calibration k by country: {kc}")
     gate = gate_test(gate_frame(d, info, "test"), cfg.get("folds", range(CFG["n_folds"])))
     if unseen:  # tempering learned only from leave-one-country-out; only for countries absent from train
         seen = set(read_tsv(source_file("train", 1), usecols=["country"])["country"])
@@ -309,6 +313,7 @@ def write(force=False, out_dir=None, unseen=None):
     for c in pd.unique(info["country"]):
         m = info["country"] == c
         stats[c] = {"S1": int(m.sum()), "empty_share": round(float((k[m] == 0).mean()), 4),
+                    "links_per_S1": round(float(k[m].mean()), 4), "k": (kc or {}).get(c, 1.0),
                     "avg_matches_nonempty": round(float(k[m][k[m] > 0].mean()), 4)}
     json.dump(stats, open(out / "stats.json", "w"), indent=1)
     print(json.dumps(stats, indent=1))
