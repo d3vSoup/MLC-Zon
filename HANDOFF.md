@@ -2,7 +2,8 @@
 
 ## SAT 26 SEP ~20:15 IST — CURRENT STATE (supersedes older sections where they differ)
 - **Deadline Sun 27 Sep 23:59 IST** (official). Upload budget: 1 Sat night (blend_cal, Razan), 5 on Sunday after ~05:30.
-- Public: ce_full_v1 0.980518; ce_half_v1 0.981. Sat-night upload = **blend_cal** md5 0a0b14806bcddf3370258467ae3fddd9.
+- Public: ce_full_v1 0.980518; ce_half_v1 0.981; **blend_cal 0.985131 = best** (md5 0a0b14806bcddf3370258467ae3fddd9, rank ~110).
+- Sunday uploads: 05:30 blend_raw -> France k point 2 (k 2-3 if raw wins, else 0.5) -> point 3 to bracket -> ~11:00 CE2 + best France k -> ~19:00 clean-room final (LAST). Backup 2nd copy = Drive (backup.sh keeps no local copy).
 - **Blend** (ber/blend.py): union candidates; p = 0.5 ours (lgbm2_ce) + 0.5 QTpies M5 (src/razan/, shipped inputs,
   sha256 checked, REPRODUCE.md in); single-source pairs as-is. OOF on his live S1: ours 0.98764, M5 0.98818 (reproduced
   exactly), blend 0.99032. w fixed 0.5 (our side optimistic in his world).
