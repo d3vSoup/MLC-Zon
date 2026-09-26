@@ -249,6 +249,10 @@ isotonic calibration, the odds of p are multiplied by a factor k per S1 country:
 
 - Grouped 5-fold CV by S1 entity (fold file with seed 42). The OOF macro F0.5 is computed exactly as the metric does:
   per S1 (singletons included), then averaged over all 2,206,821 train S1.
+- **Blend evaluation** uses the partner's density-matched world (their 1,853,766 live train S1). Caveat: our
+  context features (margins vs the best S1 of a record) were computed with their dropped S1 present, so our side is
+  slightly optimistic there (our OOF barely moves: 0.98765 natural vs 0.98764 live); the blend weight is therefore
+  fixed at 0.5 instead of the OOF optimum.
 - **Leave-one-country-out (LOCO)** simulates unseen France: train on one country, calibrate and decode on it only,
   then score the other country.
 
