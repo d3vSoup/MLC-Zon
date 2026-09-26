@@ -48,10 +48,14 @@ def round1(src, ctry_of, tag, fold0_only=False):
     feats = [c for c in pq.ParquetFile(work("train", "feats.parquet")).schema_arrow.names if c not in ID]
     labels = pq.read_table(work("train", "cands.parquet"), columns=["label"]).column("label").to_numpy()
     s1 = pq.read_table(work("train", "feats.parquet"), columns=["s1"]).column("s1").to_numpy()
-    is_src_all = np.isin(s1, ctry_of.index[ctry_of.values == src].values)  # bool masks, no 153M-row string arrays
-    samp = fm["sampled"].reindex(s1).values.astype(bool) & is_src_all
-    fold_all = fm["fold"].reindex(s1).values.astype(np.int8)
+    # one sorted lookup for country / sample / fold (no 153M-row string or hash-table temporaries)
+    keys = np.sort(fm.index.values)
+    at = np.searchsorted(keys, s1)
     del s1
+    is_src_all = (ctry_of.reindex(keys).values == src)[at]
+    samp = fm["sampled"].reindex(keys).values.astype(bool)[at] & is_src_all
+    fold_all = fm["fold"].reindex(keys).values.astype(np.int8)[at]
+    del at
     X = np.empty((int(samp.sum()), len(feats)), np.float32)
     off = row = 0
     for b in batches("train", feats):
