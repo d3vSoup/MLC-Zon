@@ -24,6 +24,17 @@ Paths are set in `src/configs/default.yaml`, relative to `<root>`. Override the 
 uses them whatever the row order of its candidate list. To regenerate them: `python -m ber.cli ce_export`,
 run the GPU script with `--half 1` and `--half 2`, then `ber.ce_ingest`.
 
+## Blend partner's predictions (only if `blend.enabled: true`)
+
+`src/razan/` ships the stage-2 pair probabilities of a teammate's independent pipeline (QTpies M5: train out-of-fold
+`oof_s2ce.parquet`, test `pred_test_s2ce.parquet`), its id maps (`ids/`) and its dropped-S1 list; see
+`src/razan/README.md` (files, SHA-256) and `src/razan/REPRODUCE.md` (how that pipeline regenerates them on Kaggle).
+The `blend` stage (last in `run_all.sh`) joins them to ours by entity ids: candidates = union of both pipelines,
+p = 0.5 x ours + 0.5 x theirs (a pair only one side scored keeps its p), isotonic + gate + expected-F decode fitted on
+their density-matched live train S1, then label-free test-time calibration (`ber/calibrate.py`: odds factor for
+countries absent from train by empty-rate matching; the seen-country shift is applied only if its fold-vs-fold
+null test passes). It writes `output/candidates/blend_{raw,cal}/` and copies the chosen file to `output/`.
+
 ## Run (CPU only)
 
 ```bash
@@ -38,7 +49,7 @@ Single stage: `$PY -m ber.cli <stage> [--split train|test] [--force]`.
 Stages in order (as in `run_all.sh`): `normalize, folds, block, blockreport, features, train` (round 1, 5 folds,
 OOF), `predict --split test`, `graph` (group features on pairs with round-1 p >= 0.01), `r2feats` (soft house-number + v2 name
 features on those pairs), `ce` (cross-encoder score, only if `round2.use_ce`), `stack` (round 2, 3000
-rounds), `decode` (isotonic + gate + expected-F, all out-of-fold), `report`, `write`. `eda` = Phase 0 facts.
+rounds), `decode` (isotonic + gate + expected-F, all out-of-fold), `report`, `write`, `blend` (only if `blend.enabled`). `eda` = Phase 0 facts.
 LightGBM runs with a fixed 16 threads (`n_jobs` in the config): its output changes with the thread count, so do not
 change it if you want byte-identical files.
 `write` runs the official validator (the matching file whole, with `--check-ids`; the candidate file in row shards, using the validator's own functions, to stay inside 16 GB RAM).
