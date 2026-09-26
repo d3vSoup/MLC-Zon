@@ -76,3 +76,84 @@ def reblend():
         fr = {c: v for c, v in st.items() if isinstance(v, dict) and "k" in v}
         log(f"  - {n}: md5 {hashlib.md5(open(f, 'rb').read()).hexdigest()} | " +
             "; ".join(f"{c} k {v['k']:.3g} empty {v['empty_share']} links/S1 {v['links_per_S1']}" for c, v in fr.items()))
+
+
+# Phase A: unseen-country errors vs seen (LOCO held-out preds), error types, shifted features -> docs/LOCO_ERRORS.md
+def loco_errors():
+    import numpy as np
+    import pandas as pd
+    import pyarrow.parquet as pq
+    from ber import loco
+    from ber.twins import attrs
+    out = ["# LOCO errors: unseen vs seen (label-scored, same model)\n"]
+    imp = pd.read_csv(work("reports", "importance_lgbm2_x.tsv"), sep="\t", index_col=0).iloc[:, 0].sort_values(ascending=False)
+    for direction, src in (("us2in", "US"), ("in2us", "India")):
+        tag = f"{direction}_num_names2c" if work("preds", f"oof_loco_{direction}_num_names2c.parquet").exists() else f"{direction}_num_names2"
+        d, info, gate, is_src = loco.prepare(f"loco_{tag}", src)
+        m = D.expf_mask(d, len(info["keys"]), gate)
+        code, lab = d["code"].values, d["label"].values
+        side = np.where(is_src[code], "seen", "unseen")
+        sel = (m & (lab == 0)) | (~m & (lab == 1))
+        x = attrs("train", info["keys"][code[sel]], d["cand"].values[sel])
+        x["side"], x["err"] = side[sel], np.where(m[sel], "FP", "FN")
+        x["q"] = d["q"].values[sel]
+        n_s1 = {"seen": int(is_src.sum()), "unseen": int((~is_src).sum())}
+        rows = []
+        for (sd, er), g in x.groupby(["side", "err"]):
+            r = {"side": sd, "error": er, "per_1k_S1": round(1000 * len(g) / n_s1[sd], 2)}
+            for c in ("core_eq", "legal_add", "num_shift", "num_same", "gen_swap"):
+                r[c] = round(float(g[c].mean()), 3)
+            r["q_median"] = round(float(g["q"].median()), 3)
+            rows.append(r)
+        out.append(f"## {direction} ({tag}): errors per 1k S1 and their type shares\n\n" + "```\n" + pd.DataFrame(rows).to_string(index=False) + "\n```" + "\n")
+        # feature shift, hard rows: unseen vs seen, among true pairs and among non-pairs (standardized mean difference)
+        r2 = pq.read_table(work("loco", direction, "r2.parquet")).to_pandas()
+        ex = [pq.read_table(work("loco", direction, f"{e}.parquet")).to_pandas() for e in tag.split("_")[1:] if work("loco", direction, f"{e}.parquet").exists()]
+        r2 = pd.concat([r2] + ex, axis=1)
+        s = np.isin(r2["s1"].values, info["keys"][is_src])
+        feats = [f for f in imp.index if f in r2.columns][:25]
+        sh = []
+        for f in feats:
+            v = r2[f].astype(float)
+            for y in (1, 0):
+                a, b = v[s & (r2["label"] == y)], v[~s & (r2["label"] == y)]
+                sd_ = np.nanstd(np.r_[a, b]) or 1.0
+                sh.append({"feature": f, "label": y, "seen_mean": round(np.nanmean(a), 4), "unseen_mean": round(np.nanmean(b), 4),
+                           "smd": round((np.nanmean(b) - np.nanmean(a)) / sd_, 3)})
+        sh = pd.DataFrame(sh).sort_values("smd", key=abs, ascending=False).head(20)
+        out.append(f"### top shifted high-importance features (hard rows, unseen minus seen, in SD units)\n\n" + "```\n" + sh.to_string(index=False) + "\n```" + "\n")
+        del d, r2
+    open(ROOT.parent / "docs" / "LOCO_ERRORS.md", "w").write("\n".join(out))
+    log("- Phase A: docs/LOCO_ERRORS.md written")
+
+
+# draft morning brief from the night decisions + candidate stats (a live session refines it)
+def brief():
+    import os
+    base = ROOT / "output" / "candidates"
+    rows = []
+    for n in ("blend_cal", "blend_raw", "blend_unseen_k0.5", "blend_unseen_k1.5", "blend_unseen_k2", "blend2_raw", "blend2_cal",
+              "blend2_unseen_k0.184", "ce_full_cal"):
+        f = base / n / "stats.json"
+        if f.exists():
+            st = json.load(open(f))
+            fr = next((v for c, v in st.items() if isinstance(v, dict) and "k" in v and c not in ("US", "India")), {})
+            rows.append(f"| {n} | {st['md5']} | {fr.get('k', '-')} | {fr.get('empty_share', '-')} | {fr.get('links_per_S1', '-')} |")
+    night = open(RES).read() if RES.exists() else ""
+    txt = f"""# Morning brief (auto-draft by the night chain; refine in session)
+
+## 05:30 upload: blend_raw (France k = 1) vs blend_cal (k 0.184, public 0.985131)
+- LOCO (India as unseen country, labels): no correction is best; k 0.25 cost -0.006, link-count k 2.3 cost -0.001.
+  If France behaves like unseen India, blend_raw wins by roughly +0.001 public.
+- QTpies M4 probe: France down-scaling helped (+0.002) on a model that over-linked France. Our blend under-links France
+  (assigned ratio 0.963 vs 0.973-0.979), so the LOCO reading is more likely to apply.
+- If raw wins: France k 1 stays; no more France points (LOCO: k > 1 loses). If raw loses: try k 0.5 next.
+
+## Night results
+{night}
+## Candidates (France stats)
+| name | md5 | France k | France empty | France links/S1 |
+|---|---|---|---|---|
+""" + "\n".join(rows) + "\n"
+    open(ROOT.parent / "docs" / "MORNING_BRIEF.md", "w").write(txt)
+    log("- MORNING_BRIEF.md draft written")
