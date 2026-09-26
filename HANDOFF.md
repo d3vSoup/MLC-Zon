@@ -1,6 +1,15 @@
 # HANDOFF — read this first, then EXPERIMENTS.md
 
-## SUN 27 SEP 00:35 IST — LATEST (read docs/MORNING_BRIEF.md + docs/AUTO_RESULTS.md first)
+## SUN 27 SEP 03:20 IST — FREEZE (read docs/MORNING_BRIEF.md first)
+- A/B: blend_raw 0.98488 < blend_cal 0.985131 -> **final France k = exact 0.18385635887853335**. Hail mary (transfer
+  model, monotone, FP bucket): nothing passed, see docs/HAILMARY.md (code on local branch `hailmary`, not merged).
+- Frozen config: round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true, blend.unseen_k
+  0.18385635887853335, extra_k []. Tag `freeze-2026-09-27` = this commit, pushed with main.
+- Backup: backup/final_2026-09-27.tar.zst (2.4 GB, md5 dafd9adf916023819d3ae98b43b63ef9) -> Drive (Muaz), then delete
+  local tar. Next: delete work/ -> Muaz runs btrfs balance -> >= 5 GB unallocated -> cleanroom full from the tag ->
+  accept if blend OOF within 0.0005 of 0.99032 -> upload clean-room blend_unseen_k0.183856 (LAST) -> zip + doc.
+
+## SUN 27 SEP 00:35 IST (read docs/MORNING_BRIEF.md + docs/AUTO_RESULTS.md first)
 - Best public: blend_cal 0.985131. Night: names2c FAILED LOCO, CE2 half +0.00015 (< +0.0003 gate), Soup CE2 never
   arrived, drop-format-features FAILED LOCO. **No new candidate.** Decode-rule LOCO: k = 1 best for an unseen country.
 - 05:30 upload blend_raw (France k 1) vs blend_cal; decision rules in docs/MORNING_BRIEF.md.

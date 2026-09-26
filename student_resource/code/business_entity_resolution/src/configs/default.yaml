@@ -37,16 +37,16 @@ lgbm:
 
 round2:                 # group (graph) features + stacked model on hard pairs only
   from_model: lgbm0     # round-1 preds used as input
-  name: lgbm2_x          # Retrain A (OOF 0.9823); lgbm1_r3000 = the uploaded fallback (OOF 0.9773)
+  name: lgbm2_ce         # FINAL (freeze 27 Sep): CE1 round 2 (OOF 0.98765); lgbm2_x = Retrain A (0.9823)
   extra: [r2_num, r2_names2]  # soft house-number + v2 name features on hard pairs (stage r2feats)
-  use_ce: false         # true = add cross-encoder score (stage ce, needs ce.scores_dir files); set name to lgbm2_ce
+  use_ce: true          # true = add cross-encoder score (stage ce, needs ce.scores_dir files); set name to lgbm2_ce
   num_boost_round: 3000
   hard_p: 0.01          # round 2 re-scores pairs with round-1 p >= this (9.8M of 153M train pairs); rest keep round-1 p
   sure_p: 0.5           # siblings = records with p >= this on the same S1
   max_sib: 20
 
 decode:
-  model: lgbm2_x        # which preds decode/write use (= round2.name)
+  model: lgbm2_ce       # which preds decode/write use (= round2.name)
 
 ce:                     # cross-encoder (xlm-roberta-base) data export; scored on teammates' Kaggle GPUs
   from_model: lgbm1_r3000
@@ -66,9 +66,9 @@ synth:                  # self-supervised synthetic pairs for unseen countries (
   weight: 1.0           # LightGBM sample weight of synthetic rows (LOCO picks 0.3 or 1.0)
 
 blend:                  # pair-level blend with the QTpies M5 stage-2 preds (src/razan/, shipped inputs; ber.blend)
-  enabled: false        # final run: true (with round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce)
+  enabled: true         # FINAL: blend with QTpies M5 (round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce)
   dir: code/business_entity_resolution/src/razan
   w: 0.5                # fixed, not tuned (OOF flat 0.3-0.7; our side optimistic in their density-matched world)
   mode: asis            # a pair only one side scored keeps that side's p
-  unseen_k: auto        # auto = empty-rate matching for countries absent from train; or a fixed k from the LB A/B
-  extra_k: [1.0, 0.18385635887853335, 0.5]  # also written (validated, md5) for the A/B: k 1, exact blend_cal k, k 0.5
+  unseen_k: 0.18385635887853335  # FINAL: exact blend_cal France k (public 0.985131 > k 1 0.98488); auto = empty-rate matching
+  extra_k: []           # no extra France files (A/B done); blend_raw (k 1) + blend_cal (auto) are still written

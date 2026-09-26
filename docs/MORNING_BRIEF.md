@@ -1,22 +1,41 @@
-# Morning brief — Sun 27 Sep (written 00:20, updated 01:00)
+**Hail mary (01:00-03:10): nothing passed, no hail-mary build. See [HAILMARY.md](HAILMARY.md).**
 
-## Timeline (freeze moved to ~06:00)
-- 05:30 upload blend_raw; Muaz sends its score + "go freeze" together.
-- ~06:00 freeze: set config (round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true,
-  blend.unseen_k = A/B winner), commit, tag `freeze-2026-09-27`, push main + tag, `tools/backup.sh` (tar to Drive),
-  delete work/ caches (abort if free < 45 GB), `FREEZE_REF=freeze-2026-09-27 tools/cleanroom.sh full <ref tsv>`.
-- ~11:30 clean room done: its blend stage writes France k 1 (`blend_unseen_k1`, = blend_raw), the exact blend_cal k
-  0.18385635887853335 (`blend_unseen_k0.183856`) and k 0.5 (`blend_unseen_k0.5`), each validated with md5;
-  accept if OOF within 0.0005 of the reference (0.99032).
-- Upload the clean-room file at the chosen k (must be the LAST upload). Zip + doc done by 15:00.
+# Morning brief — Sun 27 Sep (written 00:20, updated 03:20)
 
+## Result: blend_cal wins the France A/B
+- blend_raw (France k 1) public **0.98488** vs blend_cal (France k 0.18385635887853335) **0.985131** -> France F
+  about -0.0017 at k 1. **Final France k = exact blend_cal k 0.18385635887853335.** No k 0.5 probe.
+- LOCO predicted the opposite, so treat LOCO as a weak proxy for France: only uploads confirm France changes.
+
+## Timeline
+- Freeze done early (~03:20, config flip committed, tag `freeze-2026-09-27` pushed with main).
+  Config: round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true,
+  blend.unseen_k 0.18385635887853335, extra_k [].
+- Backup tar `backup/final_2026-09-27.tar.zst` (2.4 GB, md5 dafd9adf916023819d3ae98b43b63ef9): Muaz uploads it
+  to Drive, then the local tar is deleted.
+- work/ is deleted after the backup check. **Muaz runs the btrfs balance.** The clean room starts only when
+  `btrfs filesystem usage /` shows >= 5 GB unallocated.
+- Clean room from the tag: `FREEZE_REF=freeze-2026-09-27 tools/cleanroom.sh full
+  student_resource/output/candidates/blend_cal/matching_results.tsv` (through tools/queue.sh). Full run_all, CE1
+  only, Razan's files as inputs. The final output is `blend_unseen_k0.183856` (exact France k), validated with md5.
+  Accept if the blend OOF is within 0.0005 of 0.99032 on the same rows. About 6 h (the old plan said done
+  ~14:30-15:15 after an 08:45 freeze; an earlier start moves it forward).
+- On failure: note the stage and error, no blind retry. Production candidates stay the fallback (blend_cal).
+- Then: final upload (the clean-room file), then zip + doc.
+
+## Uploads today
+- Slot 1 (done): blend_raw 0.98488.
+- Slot 2: **no hail-mary candidate** (nothing passed its gates). Skip it, or keep it free.
+- Slot 3: **the clean-room file of the base variant (blend_unseen_k0.183856). It MUST be the last upload.** Its md5
+  should equal blend_cal (0a0b14806bcddf3370258467ae3fddd9) if the run is fully deterministic. A different md5 is
+  fine if the OOF acceptance passes. If so, check the rows-changed count first.
 
 ## Night outcome in one line
 Nothing new beat `blend_cal`'s model. names2c failed LOCO (-0.0007 / -0.0003), the CE2 half-ingest gained only
 +0.00015 (gate +0.0003), Soup's CE2 half never arrived. The decode-rule LOCO test says: no France correction (k = 1)
 is best for an unseen country. Phase B (drop format-count features) is being tested — see the last section.
 
-## 05:30 upload: `blend_raw` (France k = 1) vs `blend_cal` (France k 0.184, public 0.985131)
+## History: the pre-upload prediction (wrong: cal won)
 - **LOCO (India held out, labels):** no correction is best; k 0.25 cost -0.0061 F on the unseen country, k 0.5 cost
   -0.0018, k 2 cost -0.0007. If France behaves like unseen India: France F rises by up to ~0.005 at k = 1 vs 0.184,
   i.e. **raw wins by ~+0.0005 to +0.001 public**.
@@ -25,7 +44,7 @@ is best for an unseen country. Phase B (drop format-count features) is being tes
   so the LOCO reading is more likely to apply.
 - France F change = (raw - cal) / 0.1498.
 
-## Upload order (slots 2 and 3) with decision rules
+## History: the old decision rules (superseded by the result above; cal won = Branch B, no k 0.5 probe)
 - **Branch A — raw > cal (by >= 0.0002):** France k = 1 is the final setting (`blend.unseen_k: 1.0`).
   Slot 2: optional confirmation `blend_unseen_k1.5` (LOCO predicts a small loss; skip it if you want to save slots).
   Slot 3: the clean-room final (must be the LAST upload).
@@ -53,6 +72,6 @@ OOF (Razan's live S1, same rows): blend 0.99032 (US 0.99049, India 0.99007, sing
 - France addresses look US-like (one house number), so the India-unseen format shift overstates France's problem;
   LOCO remains the best available proxy.
 
-## Final-config reminder (for the 12:00 freeze)
-round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true, blend.unseen_k = the A/B winner
-(1.0 for Branch A / tie; 0.184 or 0.5 for Branch B). names2.by_group stays false. No CE2.
+## Final config (frozen)
+round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true, blend.unseen_k 0.18385635887853335,
+extra_k []. names2.by_group stays false. No CE2. No hail-mary flag.
