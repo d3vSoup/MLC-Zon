@@ -189,16 +189,22 @@ def variant(direction, extra=(), pseudo=False, rounds=None):
     rounds = rounds or CFG["lgbm"]["num_boost_round"]
     s1 = read_tsv(source_file("train", 1), usecols=["entity_id", "country"])
     ctry_of = pd.Series(s1["country"].values, index=to_key(s1["entity_id"]))
-    d = pq.read_table(work("loco", direction, "r2.parquet")).to_pandas()
+    t = pq.read_table(work("loco", direction, "r2.parquet"))
+    d = t.select(["s1", "row", "label"]).to_pandas()
     rows = d["row"].values
+    parts = [t.drop(["s1", "cand", "row", "label"])]
     if extra:
         from ber.features import names2, numbers
         for e in extra:
             f = work("loco", direction, f"{e}.parquet")
             if not f.exists():
                 numbers.run("train", force=True, rows=rows, out=f) if e == "num" else names2.run("train", rows, f)
-            d = pd.concat([d, pq.read_table(f).to_pandas()], axis=1)
-    feats = [c for c in d.columns if c not in ("s1", "cand", "row", "label")]
+            parts.append(pq.read_table(f))
+    feats = [c for tb in parts for c in tb.column_names]
+    X = np.empty((len(d), len(feats)), np.float32)  # one float32 matrix, filled column by column (no pandas copies)
+    for j, col in enumerate(c for tb in parts for c in tb.columns):
+        X[:, j] = col.to_numpy()
+    del t, parts
     is_src = ctry_of.reindex(d["s1"].values).values == src
     fold = fold_map()["fold"].reindex(d["s1"].values).values
     y = d["label"].values.copy()
@@ -209,10 +215,9 @@ def variant(direction, extra=(), pseudo=False, rounds=None):
         y[pos], y[neg] = 1, 0
         train_rows |= pos | neg
         print(f"pseudo-labels: {int(pos.sum())} pos, {int(neg.sum())} neg of {int((~is_src).sum())} unseen rows")
-    X = d[feats].to_numpy(np.float32)
     p = params(rounds)
     out = np.empty(len(d), np.float32)
-    full = lgb.Dataset(X[train_rows], y[train_rows], feature_name=feats, params=p, free_raw_data=False).construct()
+    full = lgb.Dataset(X[train_rows], y[train_rows], feature_name=feats, params=p).construct()
     tr_idx, f_tr = np.flatnonzero(train_rows), fold[train_rows]
     models = []
     for k in range(CFG["n_folds"]):  # folds by S1 across both countries: every row is predicted out-of-fold
