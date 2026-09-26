@@ -80,9 +80,10 @@ def empty_rate(d, info, k, folds, iso):
 
 # null test (train OOF fold 1 as "test" vs fold 0 as "train": no shift, k must be ~1) + k per country on test
 # load(split) -> (owned pairs with p, info); default = this run's decode inputs (the blend passes its own)
-# expect_anchor: operator sanity check (the least-shifted seen country the label-free evidence names); if the data
-# picks another anchor, the seen-country part is not used
-def fit(load=None, expect_anchor=None):
+# returns k_unseen_only (seen countries k = 1; empty-rate k for countries absent from train) and, only if the null
+# test passes, k_full (+ DiD k for seen countries, anchor picked by the data rule). The report checks the anchor
+# against label-free diagnostics; no country name is an input anywhere.
+def fit(load=None):
     load = load or D.owned
     cfg = json.load(open(work("reports", f"decode_{D.NAME}.json")))
     folds = cfg.get("folds", list(range(CFG["n_folds"])))
@@ -104,30 +105,33 @@ def fit(load=None, expect_anchor=None):
     print("test vs train OOF:", flush=True)
     anchor, did_k = did(d["p"].values[np.isin(c_te, seen)], c_te[np.isin(c_te, seen)], n_te, q_tr, c_tr, n_tr)
     null_ok = min(null.values()) >= NULL_MIN  # the DiD shift is used only if it finds no shift where there is none
-    anchor_ok = expect_anchor is None or anchor == expect_anchor
-    ks = did_k if null_ok and anchor_ok else {c: 1.0 for c in seen}
-    print(f"null test {'PASS' if null_ok else 'FAIL'} (min k {min(null.values()):.3f}), anchor {anchor} "
-          f"({'as expected' if anchor_ok else f'expected {expect_anchor}'}): seen-country k = {ks}", flush=True)
-    emp = {}
-    for c in seen:
-        dc, ic = subset(d, info, info["country"] == c)
-        emp[c] = empty_rate(dc, ic, ks[c], folds, iso)
-    ref = sum(emp[c] * n_te[c] for c in seen) / sum(n_te[c] for c in seen)
-    for c in sorted(set(info["country"]) - set(seen)):  # unseen: continuous k by bisection on log k
-        dc, ic = subset(d, info, info["country"] == c)
-        e1, target = empty_rate(dc, ic, 1.0, folds, iso), ref + DELTA
-        lo, hi = np.log(0.005), 0.0
-        if e1 >= target:
-            ks[c] = 1.0
-        else:
-            for _ in range(18):
-                mid = (lo + hi) / 2
-                lo, hi = (mid, hi) if empty_rate(dc, ic, np.exp(mid), folds, iso) > target else (lo, mid)
-            ks[c] = float(np.exp(hi))
-        emp[c] = empty_rate(dc, ic, ks[c], folds, iso)
-        print(f"{c}: seen empty {ref:.4f}, target {target:.4f}, empty at k=1 {e1:.4f}, k={ks[c]:.4f} -> {emp[c]:.4f}", flush=True)
-    out = {"anchor": anchor, "anchor_ok": bool(anchor_ok), "k": ks, "did_k": did_k, "null_k": null, "null_pass": bool(null_ok), "empty": emp,
-           "seen_empty": ref, "delta": DELTA}
+    print(f"null test {'PASS' if null_ok else 'FAIL'} (min k {min(null.values()):.3f}); data-rule anchor {anchor}; DiD k {did_k}", flush=True)
+    res = {}
+    for tag, ks in (("k_unseen_only", {c: 1.0 for c in seen}), ("k_full", did_k)):
+        if tag == "k_full" and not null_ok:
+            continue
+        ks = dict(ks)
+        emp = {}
+        for c in seen:
+            dc, ic = subset(d, info, info["country"] == c)
+            emp[c] = empty_rate(dc, ic, ks[c], folds, iso)
+        ref = sum(emp[c] * n_te[c] for c in seen) / sum(n_te[c] for c in seen)
+        for c in sorted(set(info["country"]) - set(seen)):  # absent from train: continuous k by bisection on log k
+            dc, ic = subset(d, info, info["country"] == c)
+            e1, target = empty_rate(dc, ic, 1.0, folds, iso), ref + DELTA
+            lo, hi = np.log(0.005), 0.0
+            if e1 >= target:
+                ks[c] = 1.0
+            else:
+                for _ in range(18):
+                    mid = (lo + hi) / 2
+                    lo, hi = (mid, hi) if empty_rate(dc, ic, np.exp(mid), folds, iso) > target else (lo, mid)
+                ks[c] = float(np.exp(hi))
+            emp[c] = empty_rate(dc, ic, ks[c], folds, iso)
+            print(f"{tag} {c}: seen empty {ref:.4f}, target {target:.4f}, empty at k=1 {e1:.4f}, k={ks[c]:.4f} -> {emp[c]:.4f}", flush=True)
+        res[tag] = ks
+        res[f"empty_{tag}"] = emp
+    out = {"anchor": anchor, "did_k": did_k, "null_k": null, "null_pass": bool(null_ok), "delta": DELTA, **res}
     json.dump(out, open(work("reports", f"calibrate_{D.NAME}.json"), "w"), indent=1)
     print(json.dumps(out, indent=1))
     return out

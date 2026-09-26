@@ -10,7 +10,9 @@ $PY -c "
 from ber.io import CFG; CFG['decode']['model'] = '$M'
 import ber.calibrate as c, ber.decode as d
 r = c.fit()
-d.write(out_dir='../../../output/candidates/$NAME', kc=r['k'])"
+d.write(out_dir='../../../output/candidates/$NAME', kc=r['k_unseen_only'])
+if 'k_full' in r:  # null test passed: seen-country DiD variant too (used only if the anchor passes the report gate)
+    d.write(out_dir='../../../output/candidates/${NAME}full', kc=r['k_full'])"
 $PY -c "
 import pandas as pd
 from ber.io import read_tsv, source_file

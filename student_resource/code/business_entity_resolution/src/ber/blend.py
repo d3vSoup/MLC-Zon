@@ -139,7 +139,7 @@ def search(model="lgbm2_ce", grid=((1.0, "shrunk"), (0.0, "shrunk"), (0.5, "asis
 
 # chosen variant: refit iso + gate on the live-S1 OOF, calibrate (null test + DiD + empty-rate) on the blend in the
 # density-matched world, decode test raw (k = 1) and calibrated, write both (validated, md5, per-country stats)
-def final(model, w, mode, name, expect_anchor=None, base="ce_full_v1"):
+def final(model, w, mode, name, base="ce_full_v1"):
     import ber.calibrate as C
     D.NAME = f"blend_{w}_{mode}"
     u_tr, live = union("train", model), live_mask("train")
@@ -148,14 +148,15 @@ def final(model, w, mode, name, expect_anchor=None, base="ce_full_v1"):
     json.dump({"folds": list(range(CFG["n_folds"])), "oof": oof}, open(work("reports", f"decode_{D.NAME}.json"), "w"))
     del d, info
     u_te = union("test", model)
-    cal = C.fit(lambda s: owned(u_tr, mix(u_tr, w, mode), "train", live) if s == "train" else owned(u_te, mix(u_te, w, mode), "test"),
-                expect_anchor)
+    cal = C.fit(lambda s: owned(u_tr, mix(u_tr, w, mode), "train", live) if s == "train" else owned(u_te, mix(u_te, w, mode), "test"))
     del u_tr
     d, info = owned(u_te, mix(u_te, w, mode), "test")
     iso = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb"))
     raw_dir = write_out(d, info, iso, {}, u_te, model, f"{name}_raw", {"oof_live": oof, "w": w, "mode": mode}, base)
-    write_out(d, info, iso, cal["k"], u_te, model, f"{name}_cal", {"oof_live": oof, "w": w, "mode": mode, "calibration": cal},
-              base, cand_from=raw_dir)
+    meta = {"oof_live": oof, "w": w, "mode": mode, "calibration": cal}
+    write_out(d, info, iso, cal["k_unseen_only"], u_te, model, f"{name}_cal", meta, base, cand_from=raw_dir)
+    if "k_full" in cal:  # null test passed: seen-country DiD too (used only if the anchor passes the report's gate)
+        write_out(d, info, iso, cal["k_full"], u_te, model, f"{name}_calfull", meta, base, cand_from=raw_dir)
 
 
 def write_out(d, info, iso, kc, u_te, model, name, meta, base, cand_from=None):
