@@ -49,4 +49,4 @@ for tag, sel, base in checks:
     out = pd.DataFrame({base: per(base, sel), '$M': per('$M', sel)}).round(5)
     out['gain'] = out['$M'] - out[base]
     print(f'{tag} ({sel.sum()} S1)'); print(out.to_string())
-    out.to_csv(work('reports', f'compare_$M_vs_{base}.tsv'), sep='\\t')"
+    out.to_csv(work('reports', f'compare_${M}_vs_{base}.tsv'), sep='\\t')"
