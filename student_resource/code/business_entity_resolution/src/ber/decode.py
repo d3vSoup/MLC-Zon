@@ -10,6 +10,7 @@ import pyarrow.parquet as pq
 from sklearn.isotonic import IsotonicRegression
 
 from ber.io import CFG, path, read_truth, read_tsv, source_file, timed, to_key, validate, work, write_id_lists
+from ber.ce_export import halves
 from ber.metric import f05
 from ber.models.lgbm import fold_map
 
@@ -45,7 +46,8 @@ def owned(split):
     n = len(keys)
     code_all = pd.Index(keys).get_indexer(pr["s1"].values)
     assert (code_all >= 0).all()
-    info = {"keys": keys, "country": country, "ids": ids, "n_cand": np.bincount(code_all, minlength=n)}
+    info = {"keys": keys, "country": country, "ids": ids, "n_cand": np.bincount(code_all, minlength=n),
+            "sel": np.arange(n)}
     keep = owner(pr["s1"].values, pr["cand"].values, pr["p"].values)
     d = pd.DataFrame({"code": code_all[keep], "cand": pr["cand"].values[keep], "p": pr["p"].values[keep]})
     if split == "train":
@@ -60,6 +62,11 @@ def owned(split):
         info["G"] = np.bincount(pd.Index(keys).get_indexer(to_key(long["s1_id"])), minlength=n)
         fm = fold_map()
         info["fold"] = fm["fold"].reindex(keys).values
+        if CFG["decode"].get("half"):  # CE-half run: tune + score only on that half's S1
+            keep = halves(keys) == CFG["decode"]["half"]
+            d = d[keep[d["code"].values]].reset_index(drop=True)
+            d["code"] = (np.cumsum(keep) - 1)[d["code"].values]
+            info = {k: v[keep] for k, v in info.items()}
     # rank inside each S1 by p (desc)
     d = d.iloc[np.lexsort((-d["p"].values, d["code"].values))].reset_index(drop=True)
     start = np.searchsorted(d["code"].values, d["code"].values, "left")
@@ -75,7 +82,7 @@ def iso():
 def calibrate_oof(d, fold):
     f = fold[d["code"].values]
     q = np.empty(len(d))
-    for k in range(CFG["n_folds"]):
+    for k in np.unique(fold):
         m = f == k
         q[m] = iso().fit(d["p"].values[~m], d["label"].values[~m]).predict(d["p"].values[m])
     full = iso().fit(d["p"].values, d["label"].values)
@@ -96,15 +103,15 @@ def gate_frame(d, info, split):
     g["n_cand"] = info["n_cand"]
     core = pd.read_parquet(work(split, "norm_s1.parquet"), columns=["name_core"])["name_core"]
     cnt = core.map(core.value_counts()).values
-    g["name_freq_log"] = np.log1p(cnt)
-    g["name_freq_share"] = cnt / n
+    g["name_freq_log"] = np.log1p(cnt[info["sel"]])
+    g["name_freq_share"] = cnt[info["sel"]] / len(cnt)
     return g
 
 
 # P(S1 has any true match), OOF by fold; saves fold models for test
 def fit_gate(g, y, fold):
     out = np.empty(len(g))
-    for k in range(CFG["n_folds"]):
+    for k in np.unique(fold):
         t, v = fold != k, fold == k
         m = lgb.train(GATE_PARAMS, lgb.Dataset(g.loc[t, GATE_FEATS], y[t]), 2000,
                       valid_sets=[lgb.Dataset(g.loc[v, GATE_FEATS], y[v])],
@@ -114,8 +121,8 @@ def fit_gate(g, y, fold):
     return out
 
 
-def gate_test(g):
-    ms = [lgb.Booster(model_file=str(work("models", f"gate_{NAME}_fold{k}.txt"))) for k in range(CFG["n_folds"])]
+def gate_test(g, folds):
+    ms = [lgb.Booster(model_file=str(work("models", f"gate_{NAME}_fold{k}.txt"))) for k in folds]
     return np.mean([m.predict(g[GATE_FEATS]) for m in ms], axis=0)
 
 
@@ -181,7 +188,7 @@ def summary(f, info):
     out = {"overall": f.mean(), "singleton_only": f[G == 0].mean()}
     for c in pd.unique(country):
         out[c] = f[country == c].mean()
-    out["fold_std"] = np.std([f[fold == k].mean() for k in range(CFG["n_folds"])])
+    out["fold_std"] = np.std([f[fold == k].mean() for k in np.unique(fold)])
     return {k: round(float(v), 5) for k, v in out.items()}
 
 
@@ -194,6 +201,7 @@ def grid_rule(d, info, gate):
     t1 = np.bincount(code[(r == 0) & (lab == 1)], minlength=n)
     empty = f05(G, 0, 0)
     S = np.zeros((len(TAU_G), len(TAU_2)))
+    ks = np.unique(fold)
     SF = np.zeros((CFG["n_folds"], len(TAU_G), len(TAU_2)))
     fsize = np.bincount(fold, minlength=CFG["n_folds"])
     for j, t2 in enumerate(TAU_2):
@@ -204,13 +212,13 @@ def grid_rule(d, info, gate):
         for i, tg in enumerate(TAU_G):
             f = np.where(gate >= tg, fp, empty)
             S[i, j] = f.mean()
-            SF[:, i, j] = np.bincount(fold, f, CFG["n_folds"]) / fsize
+            SF[ks, i, j] = np.bincount(fold, f, CFG["n_folds"])[ks] / fsize[ks]
     best = S.max()
     pi, pj = np.nonzero(S >= best - 0.002)
     ci, cj = pi.mean(), pj.mean()
     w = np.argmin((pi - ci) ** 2 + (pj - cj) ** 2)
     i, j = pi[w], pj[w]
-    per_fold = [np.unravel_index(SF[k].argmax(), S.shape) for k in range(CFG["n_folds"])]
+    per_fold = [np.unravel_index(SF[k].argmax(), S.shape) for k in ks]
     return {"tau_g": float(TAU_G[i]), "tau_2": float(TAU_2[j]), "grid_best": round(float(best), 5),
             "plateau_tau_g": [float(TAU_G[pi.min()]), float(TAU_G[pi.max()])],
             "plateau_tau_2": [float(TAU_2[pj.min()]), float(TAU_2[pj.max()])],
@@ -247,7 +255,8 @@ def run(force=False):
         for name, m in masks.items():
             res[name]["oof"] = summary(score(d, info, m)[2], info)
         best = max(res, key=lambda k: res[k]["oof"]["overall"])
-        out = {"chosen": best, "decoders": res, "all_empty": round(float((info["G"] == 0).mean()), 5),
+        out = {"chosen": best, "decoders": res, "folds": np.unique(info["fold"]).tolist(),
+               "all_empty": round(float((info["G"] == 0).mean()), 5),
                "pc_after_block": round(float(info["g_cand"].sum() / info["G"].sum()), 5)}
         print(json.dumps(out, indent=1))
         json.dump(out, open(work("reports", f"decode_{NAME}.json"), "w"), indent=1)
@@ -263,7 +272,7 @@ def write(force=False, out_dir=None, unseen=None):
     d, info = owned("test")
     n = len(info["keys"])
     d["q"] = pickle.load(open(work("models", f"iso_{NAME}.pkl"), "rb")).predict(d["p"].values)
-    gate = gate_test(gate_frame(d, info, "test"))
+    gate = gate_test(gate_frame(d, info, "test"), cfg.get("folds", range(CFG["n_folds"])))
     if unseen:  # tempering learned only from leave-one-country-out; only for countries absent from train
         seen = set(read_tsv(source_file("train", 1), usecols=["country"])["country"])
         new = ~pd.Series(info["country"]).isin(seen).values

@@ -18,3 +18,4 @@ student_resource/output/
 .env
 .aws/
 kaggle.json
+backup/

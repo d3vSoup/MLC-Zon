@@ -7,6 +7,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ber.io import CFG, timed, work
+from ber.ce_export import halves
 from ber.models.lgbm import fold_map
 
 R2 = CFG["round2"]
@@ -34,11 +35,14 @@ def run(force=False):
 
 
 # frac < 1 trains on that share of S1 (key-hashed) but still predicts every OOF row: learning-curve probe
-def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False, extra=()):
+# half = train + OOF only on that CE half of S1 (folds with no rows of it skipped; other rows keep round-1 p)
+def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False, extra=(), half=None):
     d = load_r2("train", use_ce, extra)
     feats = [c for c in d.columns if c not in DROP]
     fold = fold_map()["fold"].reindex(d["s1"].values).values
     use = (d["s1"].values % 1000) < frac * 1000
+    mine = halves(d["s1"].values) == half if half else np.ones(len(d), bool)
+    ks = [k for k in range(CFG["n_folds"]) if (mine & (fold == k)).any()]
     y, rows = d["label"].values, d["row"].values
     print(f"round2 rows {len(d)} pos rate {y.mean():.4f} feats {len(feats)}", flush=True)
     p = dict(CFG["lgbm"])
@@ -52,21 +56,22 @@ def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False, extra=()):
     del d
     oof = np.empty(len(y), np.float32)
     imp = []
-    for k in range(CFG["n_folds"]):
+    for k in ks:
         with timed(f"round2 fold {k}"):
-            t, v = full.subset(np.flatnonzero((fold != k) & use)), full.subset(np.flatnonzero(fold == k))
+            v_ = (fold == k) & mine
+            t, v = full.subset(np.flatnonzero((fold != k) & use & mine)), full.subset(np.flatnonzero(v_))
             m = lgb.train(params, t, p["num_boost_round"], valid_sets=[v],
                           callbacks=[lgb.early_stopping(p["early_stopping"], verbose=False)])
             m.save_model(model_path(k, name))
-            oof[fold == k] = m.predict(X[fold == k], num_threads=CFG["n_jobs"])
+            oof[v_] = m.predict(X[v_], num_threads=CFG["n_jobs"])
             imp.append(pd.Series(m.feature_importance("gain"), index=feats))
             print(f"round2 fold {k} best_iter {m.best_iteration} logloss "
                   f"{m.best_score['valid_0']['binary_logloss']:.5f}", flush=True)
     (pd.concat(imp, axis=1).mean(axis=1).sort_values(ascending=False) / 1e6).round(3) \
         .to_csv(work("reports", f"importance_{name or R2['name']}.tsv"), sep="\t")
-    write_preds("train", rows, oof, name)
+    write_preds("train", rows[mine], oof[mine], name)
     if test:
-        predict_test(name, use_ce, extra)
+        predict_test(name, use_ce, extra, ks[:CFG["lgbm"]["test_models"]])
 
 
 # round-2 table + optional row-aligned extra feature files (work/{split}/<name>.parquet) + optional CE score
@@ -83,9 +88,9 @@ def load_r2(split, use_ce=False, extra=()):
     return d
 
 
-def predict_test(name=None, use_ce=False, extra=()):
+def predict_test(name=None, use_ce=False, extra=(), folds=None):
     d = load_r2("test", use_ce, extra)
-    ms = [lgb.Booster(model_file=str(model_path(k, name))) for k in range(CFG["lgbm"]["test_models"])]
+    ms = [lgb.Booster(model_file=str(model_path(k, name))) for k in folds or range(CFG["lgbm"]["test_models"])]
     X = d[ms[0].feature_name()]
     write_preds("test", d["row"].values, np.mean([m.predict(X, num_threads=CFG["n_jobs"]) for m in ms], axis=0),
                 name)
