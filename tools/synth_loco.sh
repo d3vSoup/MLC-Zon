@@ -8,7 +8,7 @@ FRAC=${1:-0.5}
 cd "$(dirname "$0")/../student_resource/code/business_entity_resolution/src"
 PY=../../../../.venv/bin/python
 W=$(cd ../../../work && pwd); SR=$W/synth/train_root
-$PY -c "import ber.synth as s; s.build('train', '$SR', frac=$FRAC)"
+[ -e $SR/dataset/train/train_ground_truth.tsv ] || $PY -c "import ber.synth as s; s.build('train', '$SR', frac=$FRAC)"
 for st in normalize block features; do BER_ROOT=$SR $PY -m ber.cli $st --split train; done
 $PY -c "
 # key similarity features: real vs synthetic true pairs (and negatives), per country
@@ -17,8 +17,12 @@ from ber.io import read_tsv, source_file, to_key
 F = ['nc_tset', 'nn_tset', 'sk_tset', 'ad_tset', 'adnl_tset', 'house_eq', 'postal', 'num_jacc', 'fw_score', 'n_first']
 out = []
 for tag, root in (('real', '$W'), ('synth', '$SR/work')):
-    x = pq.read_table(f'{root}/train/feats.parquet', columns=['s1'] + F).to_pandas()
-    x['label'] = pq.read_table(f'{root}/train/cands.parquet', columns=['label']).column(0).to_numpy()
+    pf = pq.ParquetFile(f'{root}/train/feats.parquet')
+    lab = pq.read_table(f'{root}/train/cands.parquet', columns=['label']).column(0).to_numpy()
+    off = np.r_[0, np.cumsum([pf.metadata.row_group(i).num_rows for i in range(pf.num_row_groups)])]
+    g = range(0, pf.num_row_groups, max(1, pf.num_row_groups // 12))  # ~12 row groups: low RAM
+    x = pd.concat([pf.read_row_group(i, columns=['s1'] + F).to_pandas().assign(label=lab[off[i]:off[i + 1]])
+                   for i in g], ignore_index=True)
     c = read_tsv(source_file('train', 1), usecols=['entity_id', 'country'])
     x['country'] = pd.Series(c.country.values, index=to_key(c.entity_id)).reindex(x.s1.values).values
     x = x.groupby(['country', 'label'], group_keys=False).apply(lambda g: g.sample(min(len(g), 200000), random_state=0))
