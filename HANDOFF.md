@@ -1,8 +1,25 @@
 # HANDOFF — read this first, then EXPERIMENTS.md
 
-State at **Sat 26 Sep 2026 ~14:45 IST**. Amazon ML Challenge 2026, Business Entity Resolution.
-Deadline **Sun 27 Sep 23:59 IST**. Muaz = lead/integrator. Razan = only uploader (Google Drive, md5-checked).
-Soup + Ankit = cross-encoder (CE) runs on Kaggle GPUs. Repo: origin = `razancodes/MLC-Zon` (private), branch `main`.
+## SAT 26 SEP ~20:15 IST — CURRENT STATE (supersedes older sections where they differ)
+- **Deadline Sun 27 Sep 23:59 IST** (official). Upload budget: 1 Sat night (blend_cal, Razan), 5 on Sunday after ~05:30.
+- Public: ce_full_v1 0.980518; ce_half_v1 0.981. Sat-night upload = **blend_cal** md5 0a0b14806bcddf3370258467ae3fddd9.
+- **Blend** (ber/blend.py): union candidates; p = 0.5 ours (lgbm2_ce) + 0.5 QTpies M5 (src/razan/, shipped inputs,
+  sha256 checked, REPRODUCE.md in); single-source pairs as-is. OOF on his live S1: ours 0.98764, M5 0.98818 (reproduced
+  exactly), blend 0.99032. w fixed 0.5 (our side optimistic in his world).
+- **Calibration** (ber/calibrate.py): anchor by data rule; seen-country DiD only if fold-vs-fold null test passes -> it
+  FAILS for our models (India k 0.31-0.33) -> seen k = 1. Unseen (absent from train) = empty-rate matching (France k
+  0.184 on blend). Seen-k curve on blend: k = 1 best.
+- **France A/B files** (candidates/): blend_raw (k 1) da71932f, blend_unseen_k0.5 6e327bf7, blend_unseen_k2 31363753,
+  blend_unseen_k3 861a28ca, blend_cal (k 0.184). France F change = score difference / 0.1498.
+- Dropped Sat: synthetic unseen-country pairs (LOCO -0.002/-0.004), twin-decoy rule (blend already rejects twins; costs
+  OOF), seed bagging, quantile LOCO, seen-k>1.
+- **Sunday**: 05:30 upload blend_raw (A/B vs blend_cal) -> pick France k (k>1 allowed) -> CE2 ingest when files arrive
+  (tools/ingest_ce2.sh <name> <ce2_ankit> <ce2_soup>; cutoff validated by 11:00) -> re-blend (blend.final with the
+  CE2 model) -> 12:00 FREEZE needs Muaz's "go freeze" -> config flip: round2.name lgbm2_ce (or CE2 model),
+  use_ce true (+ce_models/ce_mix), decode.model same, blend.enabled true, blend.unseen_k = A/B winner -> backup.sh ->
+  delete work/ caches (abort < 45 GB free) -> tools/cleanroom.sh full <ref> (~6 h) -> accept if OOF within 0.0005 ->
+  final upload by 20:00 (LAST upload) -> make_zip.sh (~1.4 GB with razan inputs), submit by 21:30.
+- Root-cause fix Sat: pyarrow iter_batches leaked ~90 MB/batch -> ber.models.lgbm.batches reads row groups.
 
 ## Files that matter
 
