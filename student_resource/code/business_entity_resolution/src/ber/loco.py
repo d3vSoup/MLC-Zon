@@ -48,9 +48,10 @@ def round1(src, ctry_of, tag, fold0_only=False):
     feats = [c for c in pq.ParquetFile(work("train", "feats.parquet")).schema_arrow.names if c not in ID]
     labels = pq.read_table(work("train", "cands.parquet"), columns=["label"]).column("label").to_numpy()
     s1 = pq.read_table(work("train", "feats.parquet"), columns=["s1"]).column("s1").to_numpy()
-    is_src_all = ctry_of.reindex(s1).values == src
-    samp = fm["sampled"].reindex(s1).values & is_src_all
-    fold_all = fm["fold"].reindex(s1).values
+    is_src_all = np.isin(s1, ctry_of.index[ctry_of.values == src].values)  # bool masks, no 153M-row string arrays
+    samp = fm["sampled"].reindex(s1).values.astype(bool) & is_src_all
+    fold_all = fm["fold"].reindex(s1).values.astype(np.int8)
+    del s1
     X = np.empty((int(samp.sum()), len(feats)), np.float32)
     off = row = 0
     for b in batches("train", feats):
@@ -73,7 +74,7 @@ def round1(src, ctry_of, tag, fold0_only=False):
     if fold0_only:
         return
     del full
-    out = np.empty(len(s1), np.float32)
+    out = np.empty(len(fold_all), np.float32)
     off = 0
     with timed(f"loco {tag} round1 predict"):
         for b in batches("train", feats):

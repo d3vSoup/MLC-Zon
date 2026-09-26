@@ -10,7 +10,7 @@ PY=../../../../.venv/bin/python
 W=$(cd ../../../work && pwd); SR=$W/synth/train_root
 [ -e $SR/dataset/train/train_ground_truth.tsv ] || $PY -c "import ber.synth as s; s.build('train', '$SR', frac=$FRAC)"
 for st in normalize block features; do BER_ROOT=$SR $PY -m ber.cli $st --split train; done
-$PY -c "
+[ -e $W/reports/synth_feat_compare.done ] || $PY -c "
 # key similarity features: real vs synthetic true pairs (and negatives), per country
 import numpy as np, pandas as pd, pyarrow.parquet as pq
 from ber.io import read_tsv, source_file, to_key
