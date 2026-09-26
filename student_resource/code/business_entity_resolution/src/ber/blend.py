@@ -113,8 +113,14 @@ def score_variant(d, info):
     d["q"] = D.calibrate_oof(d, info["fold"])
     g = D.gate_frame(d, info, "train")
     gate = D.fit_gate(g, (info["G"] > 0).astype(int), info["fold"])
-    f = D.score(d, info, D.expf_mask(d, len(info["keys"]), gate))[2]
-    return D.summary(f, info)
+    mask = D.expf_mask(d, len(info["keys"]), gate)
+    k, t, f = D.score(d, info, mask)
+    out = D.summary(f, info)
+    out["precision"] = round(float(t.sum() / max(k.sum(), 1)), 5)  # pooled TP / predicted links
+    for c in pd.unique(info["country"]):
+        m = info["country"] == c
+        out[f"precision_{c}"] = round(float(t[m].sum() / max(k[m].sum(), 1)), 5)
+    return out
 
 
 def search(model="lgbm2_ce", grid=((1.0, "shrunk"), (0.0, "shrunk"), (0.5, "asis"), (0.5, "shrunk"),
@@ -172,3 +178,15 @@ def final(model, w, mode, name):
                     "links_per_S1": round(float(n[m].mean()), 4)}
     json.dump(stats, open(out / "stats.json", "w"), indent=1)
     print(json.dumps(stats, indent=1))
+
+
+# singles vs the chosen blend on the live-S1 OOF, with precision (the blend must beat both everywhere)
+def check(model, w, mode):
+    u, live = union("train", model), live_mask("train")
+    res = {}
+    for ww, mm in ((1.0, "shrunk"), (0.0, "shrunk"), (w, mode)):
+        D.NAME = f"blend_{ww}_{mm}"
+        d, info = owned(u, mix(u, ww, mm), "train", live)
+        res[f"{ww}_{mm}"] = score_variant(d, info)
+        print(f"w={ww} {mm}: {res[f'{ww}_{mm}']}", flush=True)
+    json.dump(res, open(work("reports", "blend_check.json"), "w"), indent=1)
