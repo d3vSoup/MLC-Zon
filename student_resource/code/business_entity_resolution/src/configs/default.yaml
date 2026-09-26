@@ -71,3 +71,4 @@ blend:                  # pair-level blend with the QTpies M5 stage-2 preds (src
   w: 0.5                # fixed, not tuned (OOF flat 0.3-0.7; our side optimistic in their density-matched world)
   mode: asis            # a pair only one side scored keeps that side's p
   unseen_k: auto        # auto = empty-rate matching for countries absent from train; or a fixed k from the LB A/B
+  extra_k: [1.0, 0.18385635887853335, 0.5]  # also written (validated, md5) for the A/B: k 1, exact blend_cal k, k 0.5

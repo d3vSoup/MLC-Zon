@@ -9,7 +9,7 @@ W=student_resource/work; C=student_resource/code/business_entity_resolution
 N=final_$(date +%F); B=backup
 mkdir -p "$B"
 files=("$MATCH" student_resource/output/candidate_pairs.tsv EXPERIMENTS.md HANDOFF.md "$W/reports"
-       "$W/preds/oof_decoded_$M.npz" "$W/preds/oof_$M.parquet" student_resource/output/candidates)
+       "$W/preds/oof_decoded_$M.npz" student_resource/output/candidates)  # per-S1 OOF npz (80 MB) instead of the 1.6 GB pair file: disk
 [ -d "$C/src/ce_scores" ] && files+=("$C/src/ce_scores")
 for f in "${files[@]}"; do [ -e "$f" ] || { echo "missing: $f"; exit 1; }; done
 git rev-parse HEAD > "$B/$N.commit"

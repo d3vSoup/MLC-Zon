@@ -273,12 +273,15 @@ def run(force=False):
         return
     model, w, mode = CFG["round2"]["name"], BL.get("w", 0.5), BL.get("mode", "asis")
     final(model, w, mode, "blend")
+    for kk in BL.get("extra_k", []):  # extra France files for the A/B (exact values; each validated with md5)
+        unseen_variants(model, w, mode, ks=(float(kk),))
     k = BL.get("unseen_k", "auto")  # "auto" = empty-rate matching; a number = fixed odds k for countries absent from train
     if k == "auto":
         src = path("output_dir") / "candidates" / "blend_cal"
     else:
-        unseen_variants(model, w, mode, ks=(float(k),))
         src = path("output_dir") / "candidates" / f"blend_unseen_k{float(k):g}"
+        if not (src / "matching_results.tsv").exists():
+            unseen_variants(model, w, mode, ks=(float(k),))
     import hashlib
     tgt = path("output_dir") / "matching_results.tsv"
     if tgt.exists() and hashlib.md5(open(tgt, "rb").read()).hexdigest() == "e7dbc8357c3d2035228854ddf8497556":
