@@ -24,3 +24,4 @@ run stack
 run decode
 run report
 run write
+run blend               # no-op unless blend.enabled (second pipeline's preds in src/razan/)

@@ -64,3 +64,10 @@ synth:                  # self-supervised synthetic pairs for unseen countries (
   frac: 0.5             # share of a country's S1 used as the synthetic universe
   ghost: 0.26           # share of that universe dropped from S1: their noisy copies match nothing (real: 26% of S2/S3)
   weight: 1.0           # LightGBM sample weight of synthetic rows (LOCO picks 0.3 or 1.0)
+
+blend:                  # pair-level blend with the QTpies M5 stage-2 preds (src/razan/, shipped inputs; ber.blend)
+  enabled: false        # final run: true (with round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce)
+  dir: code/business_entity_resolution/src/razan
+  w: 0.5                # fixed, not tuned (OOF flat 0.3-0.7; our side optimistic in their density-matched world)
+  mode: asis            # a pair only one side scored keeps that side's p
+  unseen_k: auto        # auto = empty-rate matching for countries absent from train; or a fixed k from the LB A/B

@@ -8,7 +8,8 @@ STAGES = {"eda": ("ber.eda", "run"), "normalize": ("ber.normalize", "run"), "fol
           "predict": ("ber.models.lgbm", "predict"), "graph": ("ber.features.graph", "run"),
           "r2feats": ("ber.features.r2extra", "run"),
           "ce": ("ber.ce_ingest", "run"), "stack": ("ber.models.stack", "run"), "ce_export": ("ber.ce_export", "run"), "decode": ("ber.decode", "run"),
-          "write": ("ber.decode", "write"), "report": ("ber.analysis", "run")}
+          "write": ("ber.decode", "write"), "report": ("ber.analysis", "run"),
+          "blend": ("ber.blend", "run")}
 
 
 def main():

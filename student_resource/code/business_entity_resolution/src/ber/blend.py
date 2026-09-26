@@ -252,3 +252,23 @@ def seen_k_curve(model="lgbm2_ce", w=0.5, mode="asis", ks=(1.0, 1.25, 1.5, 2.0, 
         print(f"seen k={kk}: {res[kk]}", flush=True)
     json.dump(res, open(work("reports", "blend_seen_k_curve.json"), "w"), indent=1)
     return res
+
+
+# pipeline stage (run_all.sh): if blend.enabled, build the blend + calibration from this run's round-2 preds and
+# make the chosen file the run's output (clean-room clones only; the main repo never runs run_all)
+def run(force=False):
+    import shutil
+    if not BL.get("enabled"):
+        return
+    model, w, mode = CFG["round2"]["name"], BL.get("w", 0.5), BL.get("mode", "asis")
+    final(model, w, mode, "blend")
+    k = BL.get("unseen_k", "auto")  # "auto" = empty-rate matching; a number = fixed odds k for countries absent from train
+    if k == "auto":
+        src = path("output_dir") / "candidates" / "blend_cal"
+    else:
+        unseen_variants(model, w, mode, ks=(float(k),))
+        src = path("output_dir") / "candidates" / f"blend_unseen_k{float(k):g}"
+    for f in ("matching_results.tsv", "candidate_pairs.tsv"):
+        shutil.copyfile(src / f, path("output_dir") / f)
+    validate((path("output_dir") / "matching_results.tsv").resolve(), (path("output_dir") / "candidate_pairs.tsv").resolve())
+    print(f"blend stage: final output = {src.name}")

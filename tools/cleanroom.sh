@@ -24,6 +24,9 @@ if [ "$MODE" = sample ]; then
 else
   ln -s "$MAIN/student_resource/dataset" "$SR/dataset"
   cp -r "$MAIN/student_resource/code/business_entity_resolution/src/ce_scores" "$CODE/src/" 2>/dev/null || echo "no CE scores"
+  # blend partner's preds (gitignored parquet inputs, like the CE scores)
+  mkdir -p "$CODE/src/razan" && cp -r "$MAIN/student_resource/code/business_entity_resolution/src/razan/"*.parquet \
+    "$MAIN/student_resource/code/business_entity_resolution/src/razan/ids" "$CODE/src/razan/" 2>/dev/null || echo "no blend inputs"
 fi
 cd src
 t=$SECONDS
