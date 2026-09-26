@@ -141,10 +141,13 @@ def search(model="lgbm2_ce", grid=((1.0, "shrunk"), (0.0, "shrunk"), (0.5, "asis
 
 # chosen variant: refit iso + gate on the live-S1 OOF, calibrate (null test + DiD + empty-rate) on the blend in the
 # density-matched world, decode test raw (k = 1) and calibrated, write both (validated, md5, per-country stats)
-def final(model, w, mode, name, base="ce_full_v1"):
+def final(model, w, mode, name, base="ce_full_v1", half=None):
     import ber.calibrate as C
-    D.NAME = f"blend_{w}_{mode}"
+    from ber.ce_export import halves
+    D.NAME = f"blend_{w}_{mode}" + (f"_{model}" if model != "lgbm2_ce" else "")
     u_tr, live = union("train", model), live_mask("train")
+    if half:  # half-trained model: its OOF exists only on that half's S1
+        live &= halves(D.s1_table("train")[0]) == half
     d, info = owned(u_tr, mix(u_tr, w, mode), "train", live)
     oof = score_variant(d, info)
     json.dump({"folds": list(range(CFG["n_folds"])), "oof": oof}, open(work("reports", f"decode_{D.NAME}.json"), "w"))
@@ -220,7 +223,7 @@ def check(model, w, mode):
 
 # decode-only variants of the written blend: odds k for countries absent from train (derived from data, no names)
 def unseen_variants(model="lgbm2_ce", w=0.5, mode="asis", ks=(0.5, 2.0, 3.0), name="blend", base="ce_full_v1"):
-    D.NAME = f"blend_{w}_{mode}"
+    D.NAME = f"blend_{w}_{mode}" + (f"_{model}" if model != "lgbm2_ce" else "")
     u_te = union("test", model)
     d, info = owned(u_te, mix(u_te, w, mode), "test")
     iso = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb"))
@@ -282,3 +285,19 @@ def run(force=False):
         shutil.copyfile(src / f, path("output_dir") / f)
     validate((path("output_dir") / "matching_results.tsv").resolve(), (path("output_dir") / "candidate_pairs.tsv").resolve())
     print(f"blend stage: final output = {src.name}")
+
+
+# OOF of the w-blend of several models on the SAME live S1 set (optionally one half only)
+def compare(models, w=0.5, mode="asis", half=None):
+    from ber.ce_export import halves
+    live = live_mask("train")
+    if half:
+        live &= halves(D.s1_table("train")[0]) == half
+    out = {}
+    for m in models:
+        u = union("train", m)
+        D.NAME = f"cmp_{m}"
+        d, info = owned(u, mix(u, w, mode), "train", live)
+        out[m] = score_variant(d, info)
+        print(f"blend OOF {m} (half {half}): {out[m]}", flush=True)
+    return out
