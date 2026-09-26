@@ -137,11 +137,9 @@ def search(model="lgbm2_ce", grid=((1.0, "shrunk"), (0.0, "shrunk"), (0.5, "asis
     return res
 
 
-# chosen variant: refit iso + gate on the live-S1 OOF, calibrate (null test + DiD + empty-rate) on the blend,
-# decode test, write matching (+ union candidate file), validate, md5 + per-country stats
-def final(model, w, mode, name):
-    import hashlib
-    from pathlib import Path
+# chosen variant: refit iso + gate on the live-S1 OOF, calibrate (null test + DiD + empty-rate) on the blend in the
+# density-matched world, decode test raw (k = 1) and calibrated, write both (validated, md5, per-country stats)
+def final(model, w, mode, name, expect_anchor=None, base="ce_full_v1"):
     import ber.calibrate as C
     D.NAME = f"blend_{w}_{mode}"
     u_tr, live = union("train", model), live_mask("train")
@@ -150,34 +148,55 @@ def final(model, w, mode, name):
     json.dump({"folds": list(range(CFG["n_folds"])), "oof": oof}, open(work("reports", f"decode_{D.NAME}.json"), "w"))
     del d, info
     u_te = union("test", model)
-    load = lambda s: owned(u_tr, mix(u_tr, w, mode), "train", live) if s == "train" else owned(u_te, mix(u_te, w, mode), "test")
-    cal = C.fit(load)
+    cal = C.fit(lambda s: owned(u_tr, mix(u_tr, w, mode), "train", live) if s == "train" else owned(u_te, mix(u_te, w, mode), "test"),
+                expect_anchor)
+    del u_tr
     d, info = owned(u_te, mix(u_te, w, mode), "test")
-    k = pd.Series(info["country"]).map(cal["k"]).fillna(1.0).values[d["code"].values]
+    iso = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb"))
+    raw_dir = write_out(d, info, iso, {}, u_te, model, f"{name}_raw", {"oof_live": oof, "w": w, "mode": mode}, base)
+    write_out(d, info, iso, cal["k"], u_te, model, f"{name}_cal", {"oof_live": oof, "w": w, "mode": mode, "calibration": cal},
+              base, cand_from=raw_dir)
+
+
+def write_out(d, info, iso, kc, u_te, model, name, meta, base, cand_from=None):
+    import hashlib
+    import os
+    from pathlib import Path
+    k = pd.Series(info["country"]).map(kc).fillna(1.0).values[d["code"].values]
     p = d["p"].values
-    d["q"] = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb")).predict(p * k / (p * k + 1 - p))
+    d = d.assign(q=iso.predict(p * k / (p * k + 1 - p)))
     gate = D.gate_test(D.gate_frame(d, info, "test"), range(CFG["n_folds"]))
     mask = D.expf_mask(d, len(info["keys"]), gate)
     out = Path(work("..", "output", "candidates", name, "x")).parent.resolve()
-    out.mkdir(parents=True, exist_ok=True)
     valid = np.concatenate([to_key(D.read_tsv(D.source_file("test", s), usecols=["entity_id"])["entity_id"]) for s in (2, 3)])
-    o = pq.read_table(work("preds", f"test_{model}.parquet"), columns=["s1", "cand"])
-    only = np.isnan(u_te["po"].values)  # their pairs our blocking never proposed
-    write_id_lists(out / "candidate_pairs.tsv", "candidate_entity_ids", info["ids"],
-                   np.r_[o.column("s1").to_numpy(), u_te["s1"].values[only]], np.r_[o.column("cand").to_numpy(), u_te["cand"].values[only]], valid)
-    del o
+    cf = out / "candidate_pairs.tsv"
+    if cand_from:  # same union candidate set: hard link, no second 2 GB copy
+        cf.unlink(missing_ok=True)
+        os.link(cand_from / "candidate_pairs.tsv", cf)
+    else:  # union of both pipelines' final candidates: all our candidates + their pairs our blocking never proposed
+        o = pq.read_table(work("preds", f"test_{model}.parquet"), columns=["s1", "cand"])
+        only = np.isnan(u_te["po"].values)
+        write_id_lists(cf, "candidate_entity_ids", info["ids"], np.r_[o.column("s1").to_numpy(), u_te["s1"].values[only]],
+                       np.r_[o.column("cand").to_numpy(), u_te["cand"].values[only]], valid)
+        del o
+        print(f"candidates: ours all + theirs-only {int(only.sum())} pairs (union)", flush=True)
     write_id_lists(out / "matching_results.tsv", "matched_entity_ids", info["ids"], info["keys"][d["code"].values[mask]],
                    d["cand"].values[mask], valid)
-    validate(out / "matching_results.tsv", out / "candidate_pairs.tsv")
+    validate(out / "matching_results.tsv", cf)
     n = np.bincount(d["code"].values[mask], minlength=len(info["keys"]))
-    stats = {"md5": hashlib.md5(open(out / "matching_results.tsv", "rb").read()).hexdigest(), "model": model, "w": w,
-             "mode": mode, "oof_live": oof, "calibration": cal}
+    stats = {"md5": hashlib.md5(open(out / "matching_results.tsv", "rb").read()).hexdigest(), "model": model, **meta}
+    b = D.read_tsv(path("output_dir") / "candidates" / base / "matching_results.tsv").set_index("source1_entity_id").iloc[:, 0]
+    a = D.read_tsv(out / "matching_results.tsv").set_index("source1_entity_id").iloc[:, 0].reindex(b.index)
+    srt = lambda x: x.map(lambda v: ",".join(sorted(v.split(","))) if v else "")
+    diff = pd.Series((srt(a) != srt(b)).values, index=b.index)
+    ctry = pd.Series(info["country"], index=info["ids"]).reindex(b.index)
     for c in pd.unique(info["country"]):
         m = info["country"] == c
-        stats[c] = {"S1": int(m.sum()), "k": cal["k"].get(c, 1.0), "empty_share": round(float((n[m] == 0).mean()), 4),
-                    "links_per_S1": round(float(n[m].mean()), 4)}
+        stats[c] = {"S1": int(m.sum()), "k": kc.get(c, 1.0), "empty_share": round(float((n[m] == 0).mean()), 4),
+                    "links_per_S1": round(float(n[m].mean()), 4), f"rows_changed_vs_{base}": int(diff[ctry == c].sum())}
     json.dump(stats, open(out / "stats.json", "w"), indent=1)
-    print(json.dumps(stats, indent=1))
+    print(json.dumps(stats, indent=1), flush=True)
+    return out
 
 
 # singles vs the chosen blend on the live-S1 OOF, with precision (the blend must beat both everywhere)
