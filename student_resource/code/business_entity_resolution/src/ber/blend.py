@@ -1,0 +1,174 @@
+import json
+import pickle
+
+import numpy as np
+import pandas as pd
+import pyarrow.parquet as pq
+
+import ber.decode as D
+from ber.io import CFG, path, read_truth, to_key, validate, work, write_id_lists
+from ber.models.lgbm import fold_map
+
+# P2: pair-level blend of our round-2 p with the QTpies M5 stage-2 p (shipped as inputs, keyed by entity ids).
+# candidate set = union of both pipelines' final candidates; p = w * ours + (1 - w) * theirs; a pair only one side
+# scored keeps its p ("asis") or is shrunk as if the other side said 0 ("shrunk"). Train is scored in their
+# density-matched world: dropped S1 (their BER_DROP=16 set) and their pairs are removed, only live S1 evaluated.
+BL = CFG.get("blend", {})
+MIN_P = 1e-4  # a pair below this on both sides can never be kept (their decide drops it too)
+
+
+def pkey(s1, cand):
+    s, c = s1 % 10**10, cand % 10**10
+    assert s.max() < 2**30 and c.max() < 2**30
+    return (s << 31) | ((cand // 10**10 - 2) << 30) | c
+
+
+def theirs(split):
+    d = BL.get("dir", "code/business_entity_resolution/src/razan")
+    f = path("dataset_dir").parent / d
+    t = pq.read_table(f / ("oof_s2ce.parquet" if split == "train" else "pred_test_s2ce.parquet"), columns=["ri", "si", "p"]).to_pandas()
+    s1 = pd.read_parquet(f / "ids" / f"n_{split}_s1.parquet", columns=["id"])["id"].values
+    r = np.concatenate([pd.read_parquet(f / "ids" / f"n_{split}_s{s}.parquet", columns=["id"])["id"].values for s in (2, 3)])
+    s1k, ck = to_key(s1[t["si"].values]), to_key(r[t["ri"].values])
+    drop = to_key(pd.read_parquet(f / "dropped_train_s1.parquet", columns=["id"])["id"].values) if split == "train" else None
+    return s1k, ck, t["p"].values.astype(np.float32), drop
+
+
+# union pairs (s1, cand, p_ours, p_theirs; NaN = side did not score it); train: dropped S1 removed
+def union(split, model):
+    tag = "oof" if split == "train" else "test"
+    o = pq.read_table(work("preds", f"{tag}_{model}.parquet"), columns=["s1", "cand", "p"])
+    os1, oc, op = (o.column(c).to_numpy() for c in ("s1", "cand", "p"))
+    del o
+    ts1, tc, tp, drop = theirs(split)
+    tk = pkey(ts1, tc)
+    order = np.argsort(tk)
+    tk, ts1, tc, tp = tk[order], ts1[order], tc[order], tp[order]
+    ok = pkey(os1, oc)
+    at = np.searchsorted(tk, ok)
+    at[at == len(tk)] = 0
+    hit = tk[at] == ok
+    del ok
+    keep = (op >= MIN_P) | hit
+    ph = np.where(hit, tp[at], np.nan).astype(np.float32)
+    seen = np.zeros(len(tk), bool)
+    seen[at[hit]] = True
+    s1 = np.r_[os1[keep], ts1[~seen]]
+    cand = np.r_[oc[keep], tc[~seen]]
+    po = np.r_[op[keep], np.full((~seen).sum(), np.nan, np.float32)]
+    ph = np.r_[ph[keep], tp[~seen]]
+    print(f"{split}: ours kept {int(keep.sum())} (of {len(op)}), both {int(hit.sum())}, theirs only {int((~seen).sum())}", flush=True)
+    u = pd.DataFrame({"s1": s1, "cand": cand, "po": po, "ph": ph})
+    if drop is not None:
+        u = u[~np.isin(u["s1"].values, drop)].reset_index(drop=True)
+    return u
+
+
+def mix(u, w, mode):
+    po, ph = u["po"].values, u["ph"].values
+    both = ~np.isnan(po) & ~np.isnan(ph)
+    if mode == "asis":
+        p = np.where(both, w * po + (1 - w) * ph, np.where(np.isnan(ph), po, ph))
+    else:
+        p = w * np.nan_to_num(po) + (1 - w) * np.nan_to_num(ph)
+    return p.astype(np.float32)
+
+
+# (d, info) like decode.owned, from any pair table; train: labels from truth, live S1 only
+def owned(u, p, split, live=None):
+    keys, country, ids = D.s1_table(split)
+    srt = np.argsort(keys)
+    code_all = srt[np.searchsorted(keys, u["s1"].values, sorter=srt)]
+    n = len(keys)
+    info = {"keys": keys, "country": country, "ids": ids, "n_cand": np.bincount(code_all, minlength=n), "sel": np.arange(n)}
+    k = D.owner(u["s1"].values, u["cand"].values, p)
+    d = pd.DataFrame({"code": code_all[k], "cand": u["cand"].values[k], "p": p[k]})
+    if split == "train":
+        _, long = read_truth()
+        tk = np.sort(pkey(to_key(long["s1_id"]), to_key(long["cand_id"])))
+        pk = pkey(u["s1"].values, u["cand"].values)
+        at = np.clip(np.searchsorted(tk, pk), 0, len(tk) - 1)
+        lab = (tk[at] == pk).astype(np.int8)
+        d["label"] = lab[k]
+        info["g_cand"] = np.bincount(code_all[lab == 1], minlength=n)
+        info["G"] = np.bincount(pd.Index(keys).get_indexer(to_key(long["s1_id"])), minlength=n)
+        info["fold"] = fold_map()["fold"].reindex(keys).values
+    d = d.iloc[np.lexsort((-d["p"].values, d["code"].values))].reset_index(drop=True)
+    d["rank"] = np.arange(len(d)) - np.searchsorted(d["code"].values, d["code"].values, "left")
+    if live is not None:
+        from ber.calibrate import subset
+        d, info = subset(d, info, live)
+    return d, info
+
+
+def live_mask(split):
+    if split != "train":
+        return None
+    return ~np.isin(D.s1_table("train")[0], theirs("train")[3])
+
+
+# OOF decode of one blend variant (isotonic cross-fit + gate + expected-F), our decoder on live S1
+def score_variant(d, info):
+    d = d.copy()
+    d["q"] = D.calibrate_oof(d, info["fold"])
+    g = D.gate_frame(d, info, "train")
+    gate = D.fit_gate(g, (info["G"] > 0).astype(int), info["fold"])
+    f = D.score(d, info, D.expf_mask(d, len(info["keys"]), gate))[2]
+    return D.summary(f, info)
+
+
+def search(model="lgbm2_ce", grid=((1.0, "shrunk"), (0.0, "shrunk"), (0.5, "asis"), (0.5, "shrunk"),
+                                    (0.3, "asis"), (0.7, "asis"), (0.3, "shrunk"), (0.7, "shrunk"))):
+    u = union("train", model)
+    live = live_mask("train")
+    res = {}
+    for w, mode in grid:
+        D.NAME = f"blend_{w}_{mode}"
+        d, info = owned(u, mix(u, w, mode), "train", live)
+        res[f"{w}_{mode}"] = score_variant(d, info)
+        print(f"w={w} {mode}: {res[f'{w}_{mode}']}", flush=True)
+    json.dump(res, open(work("reports", "blend_search.json"), "w"), indent=1)
+    return res
+
+
+# chosen variant: refit iso + gate on the live-S1 OOF, calibrate (null test + DiD + empty-rate) on the blend,
+# decode test, write matching (+ union candidate file), validate, md5 + per-country stats
+def final(model, w, mode, name):
+    import hashlib
+    from pathlib import Path
+    import ber.calibrate as C
+    D.NAME = f"blend_{w}_{mode}"
+    u_tr, live = union("train", model), live_mask("train")
+    d, info = owned(u_tr, mix(u_tr, w, mode), "train", live)
+    oof = score_variant(d, info)
+    json.dump({"folds": list(range(CFG["n_folds"])), "oof": oof}, open(work("reports", f"decode_{D.NAME}.json"), "w"))
+    del d, info
+    u_te = union("test", model)
+    load = lambda s: owned(u_tr, mix(u_tr, w, mode), "train", live) if s == "train" else owned(u_te, mix(u_te, w, mode), "test")
+    cal = C.fit(load)
+    d, info = owned(u_te, mix(u_te, w, mode), "test")
+    q = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb")).predict(d["p"].values)
+    k = pd.Series(info["country"]).map(cal["k"]).fillna(1.0).values[d["code"].values]
+    d["q"] = q * k / (q * k + 1 - q)
+    gate = D.gate_test(D.gate_frame(d, info, "test"), range(CFG["n_folds"]))
+    mask = D.expf_mask(d, len(info["keys"]), gate)
+    out = Path(work("..", "output", "candidates", name, "x")).parent.resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    valid = np.concatenate([to_key(D.read_tsv(D.source_file("test", s), usecols=["entity_id"])["entity_id"]) for s in (2, 3)])
+    o = pq.read_table(work("preds", f"test_{model}.parquet"), columns=["s1", "cand"])
+    only = np.isnan(u_te["po"].values)  # their pairs our blocking never proposed
+    write_id_lists(out / "candidate_pairs.tsv", "candidate_entity_ids", info["ids"],
+                   np.r_[o.column("s1").to_numpy(), u_te["s1"].values[only]], np.r_[o.column("cand").to_numpy(), u_te["cand"].values[only]], valid)
+    del o
+    write_id_lists(out / "matching_results.tsv", "matched_entity_ids", info["ids"], info["keys"][d["code"].values[mask]],
+                   d["cand"].values[mask], valid)
+    validate(out / "matching_results.tsv", out / "candidate_pairs.tsv")
+    n = np.bincount(d["code"].values[mask], minlength=len(info["keys"]))
+    stats = {"md5": hashlib.md5(open(out / "matching_results.tsv", "rb").read()).hexdigest(), "model": model, "w": w,
+             "mode": mode, "oof_live": oof, "calibration": cal}
+    for c in pd.unique(info["country"]):
+        m = info["country"] == c
+        stats[c] = {"S1": int(m.sum()), "k": cal["k"].get(c, 1.0), "empty_share": round(float((n[m] == 0).mean()), 4),
+                    "links_per_S1": round(float(n[m].mean()), 4)}
+    json.dump(stats, open(out / "stats.json", "w"), indent=1)
+    print(json.dumps(stats, indent=1))

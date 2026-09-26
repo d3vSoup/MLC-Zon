@@ -72,10 +72,12 @@ def empty_rate(d, info, k, folds):
 
 
 # null test (train OOF fold 1 as "test" vs fold 0 as "train": no shift, k must be ~1) + k per country on test
-def fit():
+# load(split) -> (owned pairs with p, info); default = this run's decode inputs (the blend passes its own)
+def fit(load=None):
+    load = load or D.owned
     cfg = json.load(open(work("reports", f"decode_{D.NAME}.json")))
     folds = cfg.get("folds", list(range(CFG["n_folds"])))
-    dt, it = D.owned("train")
+    dt, it = load("train")
     f = it["fold"][dt["code"].values]
     q = np.empty(len(dt))
     for k in np.unique(f):  # cross-fit isotonic, as decode does (OOF q honest)
@@ -89,7 +91,7 @@ def fit():
     n_tr = {c: int((it["country"] == c).sum()) for c in seen}
     q_tr = q
     del dt, it, q
-    d, info = D.owned("test")
+    d, info = load("test")
     d["q0"] = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb")).predict(d["p"].values)
     c_te = info["country"][d["code"].values]
     n_te = {c: int((info["country"] == c).sum()) for c in set(info["country"])}
