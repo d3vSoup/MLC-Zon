@@ -13,6 +13,7 @@ from ber.io import CFG, read_tsv, source_file, work
 # countries absent from train: odds scaled so their empty-S1 rate = seen countries' rate + DELTA (open-set rule).
 EDGES = 1 / (1 + np.exp(-np.linspace(-4.6, 9.2, 47)))  # q 0.01 .. 0.9999, 0.3 logit wide
 MID, DEC, DELTA = (0.3, 0.93), (0.9, 0.995), 0.0015
+NULL_MIN = 0.95  # fold-vs-fold null test must give k >= this for every seen country
 
 
 def odds(q, k):
@@ -94,7 +95,10 @@ def fit(load=None):
     c_te = info["country"][d["code"].values]
     n_te = {c: int((info["country"] == c).sum()) for c in set(info["country"])}
     print("test vs train OOF:", flush=True)
-    anchor, ks = did(d["p"].values[np.isin(c_te, seen)], c_te[np.isin(c_te, seen)], n_te, q_tr, c_tr, n_tr)
+    anchor, did_k = did(d["p"].values[np.isin(c_te, seen)], c_te[np.isin(c_te, seen)], n_te, q_tr, c_tr, n_tr)
+    null_ok = min(null.values()) >= NULL_MIN  # the DiD shift is used only if it finds no shift where there is none
+    ks = did_k if null_ok else {c: 1.0 for c in seen}
+    print(f"null test {'PASS' if null_ok else 'FAIL'} (min k {min(null.values()):.3f}): seen-country k = {ks}", flush=True)
     emp = {}
     for c in seen:
         dc, ic = subset(d, info, info["country"] == c)
@@ -113,7 +117,8 @@ def fit(load=None):
             ks[c] = float(np.exp(hi))
         emp[c] = empty_rate(dc, ic, ks[c], folds, iso)
         print(f"{c}: seen empty {ref:.4f}, target {target:.4f}, empty at k=1 {e1:.4f}, k={ks[c]:.4f} -> {emp[c]:.4f}", flush=True)
-    out = {"anchor": anchor, "k": ks, "null_k": null, "empty": emp, "seen_empty": ref, "delta": DELTA}
+    out = {"anchor": anchor, "k": ks, "did_k": did_k, "null_k": null, "null_pass": bool(null_ok), "empty": emp,
+           "seen_empty": ref, "delta": DELTA}
     json.dump(out, open(work("reports", f"calibrate_{D.NAME}.json"), "w"), indent=1)
     print(json.dumps(out, indent=1))
     return out
