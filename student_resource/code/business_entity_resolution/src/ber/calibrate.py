@@ -36,7 +36,7 @@ def profile(q_te, n_te, q_tr, n_tr):
 
 def excess(pr):
     m = band(MID) & (pr[1] > 0)
-    return float(np.average(pr[2][m], weights=pr[1][m]))
+    return float(np.average(pr[2][m], weights=pr[1][m])) if m.any() else 1.0  # tiny runs: no mid-band rows
 
 
 def shift_k(c, ref):

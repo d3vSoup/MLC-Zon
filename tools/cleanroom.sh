@@ -18,16 +18,16 @@ uv venv -q --python 3.11 .venv
 uv pip install -q --python .venv/bin/python -r requirements.txt
 if [ "$MODE" = sample ]; then
   "$MAIN/.venv/bin/python" "$MAIN/tools/make_sample.py" "$SR"
-  sed -i 's/^  name: lgbm2_x .*/  name: lgbm2_ce/; s/^  use_ce: false .*/  use_ce: true/; s/^  model: lgbm2_x .*/  model: lgbm2_ce/' \
+  sed -i 's/^  name: lgbm2_x .*/  name: lgbm2_ce/; s/^  use_ce: false .*/  use_ce: true/; s/^  model: lgbm2_x .*/  model: lgbm2_ce/; s/^  enabled: false .*/  enabled: true/' \
     src/configs/default.yaml
-  grep -c "lgbm2_ce\|use_ce: true" src/configs/default.yaml
+  grep -c "lgbm2_ce\|use_ce: true\|enabled: true" src/configs/default.yaml
 else
   ln -s "$MAIN/student_resource/dataset" "$SR/dataset"
   cp -r "$MAIN/student_resource/code/business_entity_resolution/src/ce_scores" "$CODE/src/" 2>/dev/null || echo "no CE scores"
-  # blend partner's preds (gitignored parquet inputs, like the CE scores)
-  mkdir -p "$CODE/src/razan" && cp -r "$MAIN/student_resource/code/business_entity_resolution/src/razan/"*.parquet \
-    "$MAIN/student_resource/code/business_entity_resolution/src/razan/ids" "$CODE/src/razan/" 2>/dev/null || echo "no blend inputs"
 fi
+# blend partner's preds (gitignored parquet inputs, like the CE scores); both modes
+mkdir -p "$CODE/src/razan" && cp -r "$MAIN/student_resource/code/business_entity_resolution/src/razan/"*.parquet \
+  "$MAIN/student_resource/code/business_entity_resolution/src/razan/ids" "$CODE/src/razan/" 2>/dev/null || echo "no blend inputs"
 cd src
 t=$SECONDS
 PY=../.venv/bin/python ./run_all.sh

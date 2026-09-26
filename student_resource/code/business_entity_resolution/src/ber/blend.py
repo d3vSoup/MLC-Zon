@@ -59,6 +59,7 @@ def union(split, model):
     ph = np.r_[ph[keep], tp[~seen]]
     print(f"{split}: ours kept {int(keep.sum())} (of {len(op)}), both {int(hit.sum())}, theirs only {int((~seen).sum())}", flush=True)
     u = pd.DataFrame({"s1": s1, "cand": cand, "po": po, "ph": ph})
+    u = u[np.isin(u["s1"].values, D.s1_table(split)[0])].reset_index(drop=True)  # only this run's S1 (sample runs)
     if drop is not None:
         u = u[~np.isin(u["s1"].values, drop)].reset_index(drop=True)
     return u
@@ -186,15 +187,19 @@ def write_out(d, info, iso, kc, u_te, model, name, meta, base, cand_from=None):
     validate(out / "matching_results.tsv", cf)
     n = np.bincount(d["code"].values[mask], minlength=len(info["keys"]))
     stats = {"md5": hashlib.md5(open(out / "matching_results.tsv", "rb").read()).hexdigest(), "model": model, **meta}
-    b = D.read_tsv(path("output_dir") / "candidates" / base / "matching_results.tsv").set_index("source1_entity_id").iloc[:, 0]
-    a = D.read_tsv(out / "matching_results.tsv").set_index("source1_entity_id").iloc[:, 0].reindex(b.index)
-    srt = lambda x: x.map(lambda v: ",".join(sorted(v.split(","))) if v else "")
-    diff = pd.Series((srt(a) != srt(b)).values, index=b.index)
-    ctry = pd.Series(info["country"], index=info["ids"]).reindex(b.index)
+    bf = path("output_dir") / "candidates" / base / "matching_results.tsv"
+    if bf.exists():
+        b = D.read_tsv(bf).set_index("source1_entity_id").iloc[:, 0]
+        a = D.read_tsv(out / "matching_results.tsv").set_index("source1_entity_id").iloc[:, 0].reindex(b.index)
+        srt = lambda x: x.map(lambda v: ",".join(sorted(v.split(","))) if v else "")
+        diff = pd.Series((srt(a) != srt(b)).values, index=b.index)
+        ctry = pd.Series(info["country"], index=info["ids"]).reindex(b.index)
     for c in pd.unique(info["country"]):
         m = info["country"] == c
         stats[c] = {"S1": int(m.sum()), "k": kc.get(c, 1.0), "empty_share": round(float((n[m] == 0).mean()), 4),
-                    "links_per_S1": round(float(n[m].mean()), 4), f"rows_changed_vs_{base}": int(diff[ctry == c].sum())}
+                    "links_per_S1": round(float(n[m].mean()), 4)}
+        if bf.exists():
+            stats[c][f"rows_changed_vs_{base}"] = int(diff[ctry == c].sum())
     json.dump(stats, open(out / "stats.json", "w"), indent=1)
     print(json.dumps(stats, indent=1), flush=True)
     return out
