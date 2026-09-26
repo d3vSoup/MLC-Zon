@@ -171,9 +171,22 @@ entity ids, so any run joins them whatever its row order. To regenerate them: ru
 
 **LightGBM round 2:** the same parameters, 3,000 rounds with early stopping (best iteration ~870-1,050 with CE). It
 trains on all hard train pairs, 5 folds by S1; test uses the fold-0 model. Pairs below the hard threshold keep their
-round-1 p. [FINAL: seed bagging, if adopted.]
+round-1 p. Seed bagging (3 extra seeds) was started and dropped for time; the base model is kept.
 
-**All models and libraries (licenses):** xlm-roberta-base (MIT); multilingual-e5-base (MIT) [if used]; LightGBM
+**Pair-level blend with a second pipeline (QTpies M5)** [FINAL: used or not]. A teammate's independent pipeline
+(char-4-gram + word TF-IDF blocking, 50 features, a collective two-stage LightGBM and two `intfloat/multilingual-e5-small`
+cross-encoders, MIT, 118M parameters; its own REPRODUCE.md is shipped in `src/razan/`) provides stage-2 pair
+probabilities for train (out-of-fold) and test, keyed by entity ids and shipped as inputs in `src/razan/`.
+- Candidate set = union of both pipelines' final candidates (ours + 634,542 test pairs only its blocking found).
+- p = 0.5 x ours + 0.5 x theirs; a pair scored by one side only keeps that side's p (this beat "missing = 0" at every
+  weight on OOF: 0.99032 vs 0.98950 at w = 0.5).
+- The weight is fixed at 0.5, not tuned: on the OOF the curve is flat (w 0.3 / 0.5 / 0.7 = 0.99012 / 0.99032 /
+  0.99041), and our side is slightly optimistic in their evaluation world (see 5.1).
+- Evaluated on their 1,853,766 "live" train S1 (their density-matched world: 16% of train S1 hash-dropped so their
+  records act as distractors, as on test). Their M5 OOF reproduced exactly (0.98820) before blending.
+
+**All models and libraries (licenses):** xlm-roberta-base (MIT); multilingual-e5-base (MIT) [if used];
+multilingual-e5-small (MIT, blend partner's cross-encoders) [if blend used]; LightGBM
 (MIT); indic-transliteration (MIT); sparse_dot_topn (Apache-2.0); rapidfuzz (MIT); scikit-learn (BSD-3-Clause);
 pandas / numpy (BSD-3-Clause); pyarrow (Apache-2.0); regex (Apache-2.0); PyTorch (BSD-3-Clause) and Hugging Face
 transformers (Apache-2.0), GPU script only. Every model is far below the 8B-parameter limit. All pins are in
@@ -213,6 +226,20 @@ These maps are general language and format knowledge, not lookups of business id
 **Threshold selection method:** there is no hand-set threshold. Four decoders are compared on OOF (single tau at the
 plateau centre, gate + tau2 grid, expected-F, expected-F + gate), and the best is kept: expected-F + gate in every
 run since phase 5.
+
+**Label-free test-time calibration** (`src/ber/calibrate.py`, adapted from the blend partner's method). The model is
+calibrated to train, but test has more distractor records (about 40% vs 26%) and a country absent from train. Before
+isotonic calibration, the odds of p are multiplied by a factor k per S1 country:
+- **Countries in train: difference-in-differences prior shift.** Per p band of each record's best pair, compare test
+  vs train rows per S1. The anchor is selected automatically by a data rule (the country with the smallest mid-band
+  excess), and verified against label-free diagnostics. The shift is used only if a null test (train fold 1 vs fold
+  0, where no shift exists) returns k >= 0.95. **Our models fail that null test** (India k 0.31-0.33): near p = 0.99,
+  a 1% difference in band counts between fold models already means k about 0.5. So k = 1 for seen countries in the
+  final file. On test the data-rule anchor was India, and the US showed a twin-decoy excess (2-3x rows at p 0.4-0.5,
+  DiD k 0.13), but its per-band profile was sloped (an artifact sign) and the null test failed, so it is not applied.
+- **Countries absent from train (open-set rule, derived from data): empty-rate matching.** k is set by bisection so
+  that the share of S1 with an empty prediction equals the seen countries' test empty share + 0.0015 (France:
+  k 0.184, empty 5.25% -> 5.92%) [FINAL: k after the leaderboard A/B].
 
 ---
 
@@ -278,7 +305,10 @@ extra false positives 6.3%, singleton false positives 2.8%. Blocking dominates i
 | per-country percentile copies of the top-15 similarity features | -0.0014 unseen (US->IN) | dropped |
 | bigger blocking (see section 3 table) | ceiling gain at most +0.0022 for 2-3x pairs | not built |
 | more round-2 data / rounds | 50% -> 100% of S1: +0.0003; 1000 -> 3000 rounds: +0.0005 | 3000 rounds kept |
-| round-2 seed bagging (3 extra seeds) | [FINAL] | [FINAL] |
+| round-2 seed bagging (3 extra seeds) | started, stopped for time | dropped |
+| self-supervised synthetic pairs for an unseen country (noise model from US+IN true pairs, noisy copies of unlabeled S1, other S1 as true negatives thanks to S1 deduplication; same blocking/features; synthetic feature distributions close to real) | LOCO US->IN: India unseen 0.91571 -> 0.91364 (weight 0.3) / 0.91132 (weight 1.0) | dropped |
+| twin-decoy decode rule (drop links with core name equal + house number +-1..20 + legal suffix added, or one generic word swapped at the same address) | blend already rejects test twins (US 3.6 vs 1.75 such links per 1k S1 on train); these signatures are true links in train (precision 0.986-1.000); dropping them costs OOF 0.0003 / 0.0039 | dropped |
+| seen-country DiD calibration | fails fold-vs-fold null test (k 0.31-0.33) | not applied |
 
 ---
 
