@@ -183,8 +183,9 @@ if __name__ == "__main__":
     run(sys.argv[1])
 
 
-# round-2 variant on an existing LOCO run: extra feature files and/or pseudo-labels on the unseen country
-def variant(direction, extra=(), pseudo=False, rounds=None):
+# round-2 variant on an existing LOCO run: extra feature files, pseudo-labels on the unseen country,
+# and/or per-country percentile copies of chosen features (qnorm)
+def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=()):
     src = {"us2in": "US", "in2us": "India"}[direction]
     rounds = rounds or CFG["lgbm"]["num_boost_round"]
     s1 = read_tsv(source_file("train", 1), usecols=["entity_id", "country"])
@@ -201,10 +202,14 @@ def variant(direction, extra=(), pseudo=False, rounds=None):
                 numbers.run("train", force=True, rows=rows, out=f) if e == "num" else names2.run("train", rows, f)
             parts.append(pq.read_table(f))
     feats = [c for tb in parts for c in tb.column_names]
-    X = np.empty((len(d), len(feats)), np.float32)  # one float32 matrix, filled column by column (no pandas copies)
+    X = np.empty((len(d), len(feats) + len(qnorm)), np.float32)  # one float32 matrix, filled column by column
     for j, col in enumerate(c for tb in parts for c in tb.columns):
         X[:, j] = col.to_numpy()
     del t, parts
+    ctry = ctry_of.reindex(d["s1"].values).values
+    for j, f in enumerate(qnorm):  # percentile within the pair's country, over this split's rows; no labels used
+        X[:, len(feats) + j] = pd.Series(X[:, feats.index(f)]).groupby(ctry).rank(pct=True).values
+    feats += [f"{f}_qc" for f in qnorm]
     is_src = ctry_of.reindex(d["s1"].values).values == src
     fold = fold_map()["fold"].reindex(d["s1"].values).values
     y = d["label"].values.copy()
@@ -228,7 +233,7 @@ def variant(direction, extra=(), pseudo=False, rounds=None):
     t = pq.read_table(work("loco", direction, "oof_r1.parquet"))
     pp = t.column("p").to_numpy().copy()
     pp[rows] = out
-    tag = f"{direction}_{'_'.join(extra) or 'base'}{'_pseudo' if pseudo else ''}"
+    tag = f"{direction}_{'_'.join(extra) or 'base'}{'_pseudo' if pseudo else ''}{'_qn' if qnorm else ''}"
     pq.write_table(t.set_column(2, "p", pa.array(pp)), work("preds", f"oof_loco_{tag}.parquet"))
     del t, pp
     res = evaluate(f"loco_{tag}", src, direction)
