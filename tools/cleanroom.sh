@@ -23,7 +23,7 @@ if [ "$MODE" = sample ]; then
   grep -c "lgbm2_ce\|use_ce: true" src/configs/default.yaml
 else
   ln -s "$MAIN/student_resource/dataset" "$SR/dataset"
-  cp -r "$MAIN/student_resource/code/business_entity_resolution/ce_scores" "$CODE/" 2>/dev/null || echo "no CE scores"
+  cp -r "$MAIN/student_resource/code/business_entity_resolution/src/ce_scores" "$CODE/src/" 2>/dev/null || echo "no CE scores"
 fi
 cd src
 t=$SECONDS

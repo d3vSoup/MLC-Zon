@@ -64,7 +64,7 @@ def main(dest, frac=0.03):
         # stand-in CE scores: CE band pairs of the sampled S1, random ce_p
         band = pd.read_parquet(WORK / "ce" / f"ce_band_{split}.parquet", columns=["s1_id", "cand_id"])
         band = band[band.s1_id.isin(keep1)]
-        ce = Path(dest) / "code/business_entity_resolution/ce_scores"
+        ce = Path(dest) / "code/business_entity_resolution/src/ce_scores"
         ce.mkdir(parents=True, exist_ok=True)
         pd.DataFrame({"s1": to_key(band.s1_id), "cand": to_key(band.cand_id),
                       "ce_p": rng.random(len(band)).astype(np.float32)}) \

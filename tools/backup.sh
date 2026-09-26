@@ -10,7 +10,7 @@ N=final_$(date +%F); B=backup; COPY=../MLC-Zon-backup
 mkdir -p "$B" "$COPY"
 files=("$MATCH" student_resource/output/candidate_pairs.tsv EXPERIMENTS.md HANDOFF.md "$W/reports"
        "$W/preds/oof_decoded_$M.npz" "$W/preds/oof_$M.parquet" student_resource/output/candidates)
-[ -d "$C/ce_scores" ] && files+=("$C/ce_scores")
+[ -d "$C/src/ce_scores" ] && files+=("$C/src/ce_scores")
 for f in "${files[@]}"; do [ -e "$f" ] || { echo "missing: $f"; exit 1; }; done
 git rev-parse HEAD > "$B/$N.commit"
 find "${files[@]}" -type f -print0 | sort -z | xargs -0 md5sum > "$B/$N.md5"

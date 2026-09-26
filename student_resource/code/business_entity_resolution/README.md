@@ -18,7 +18,7 @@ Paths are set in `src/configs/default.yaml`, relative to `<root>`. Override the 
 
 ## Cross-encoder scores (only if `round2.use_ce: true`)
 
-`ce_scores/ce_scores_{train,test}.parquet` (s1, cand, ce_p) ship with this folder. They come from
+`src/ce_scores/ce_scores_{train,test}.parquet` (s1, cand, ce_p) ship with this folder. They come from
 `src/gpu/ce_train_predict.py` (xlm-roberta-base, MIT) run on 2x T4 GPUs (Kaggle), about X h per half, then
 `python -m ber.ce_ingest <dir_half1> <dir_half2>`. The scores are keyed by entity ids, so the CPU pipeline
 uses them whatever the row order of its candidate list. To regenerate them: `python -m ber.cli ce_export`,
