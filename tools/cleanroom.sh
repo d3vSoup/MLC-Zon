@@ -35,6 +35,11 @@ echo "pipeline wall $(( (SECONDS - t) / 60 )) min"
 ../.venv/bin/python -m pytest -q tests
 du -sh "$SR/work" "$SR/output"
 md5sum "$SR/output/matching_results.tsv" "$SR/output/candidate_pairs.tsv"
+# acceptance: clean OOF within 0.0005 of the reference run's OOF
+for f in "$SR"/output/candidates/blend_cal/stats.json "$MAIN"/student_resource/output/candidates/blend_cal/stats.json; do
+  [ -e "$f" ] && echo "$f OOF: $(python3 -c "import json; print(json.load(open('$f')).get('oof_live', {}).get('overall'))")"
+done
+grep -h '"overall"' "$SR"/work/reports/decode_lgbm2_ce*.json 2>/dev/null | head -2 || true
 if [ -n "$REF" ]; then
   md5sum "$REF"
   ../.venv/bin/python - "$REF" "$SR/output/matching_results.tsv" <<'EOF'
