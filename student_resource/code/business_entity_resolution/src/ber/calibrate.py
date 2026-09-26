@@ -45,12 +45,17 @@ def shift_k(c, ref):
     prec = np.clip(qbar[ok] * ref[2][ok] / r[ok], 1e-4, 1 - 1e-4)
     lk = np.minimum(0, np.log(prec / (1 - prec)) - np.log(qbar[ok] / (1 - qbar[ok])))  # a deficit is no evidence
     print("   band k: " + " ".join(f"{a:.3f}:{b:.3f}" for a, b in zip(qbar[ok], np.exp(lk))), flush=True)
+    if ok.sum() >= 3:  # flat profile = genuine prior shift, sloped = artifact (QTpies criterion)
+        print(f"   log-k spread {np.std(lk):.3f}, slope per band {np.polyfit(np.arange(ok.sum()), lk, 1)[0]:+.3f}", flush=True)
     return min(1.0, float(np.exp(np.average(lk, weights=rows[ok])))) if ok.any() else 1.0
 
 
 # anchor + k per seen country from owner-pair q of "test" vs "train" (either split, or two train folds)
 def did(q_te, c_te, n_te, q_tr, c_tr, n_tr):
     prof = {c: profile(q_te[c_te == c], n_te[c], q_tr[c_tr == c], n_tr[c]) for c in n_tr}
+    show = (band(MID) | band(DEC)) & np.all([pr[1] >= 200 for pr in prof.values()], axis=0)
+    for c, pr in prof.items():  # rows-per-S1 ratio (test / train) per band, both countries
+        print(f"   {c} ratio by band: " + " ".join(f"{a:.3f}:{b:.3f}" for a, b in zip(pr[0][show], pr[2][show])), flush=True)
     anchor = min(prof, key=lambda c: excess(prof[c]))
     ks = {}
     for c in prof:
