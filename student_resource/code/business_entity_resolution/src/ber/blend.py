@@ -210,3 +210,45 @@ def check(model, w, mode):
         res[f"{ww}_{mm}"] = score_variant(d, info)
         print(f"w={ww} {mm}: {res[f'{ww}_{mm}']}", flush=True)
     json.dump(res, open(work("reports", "blend_check.json"), "w"), indent=1)
+
+
+# decode-only variants of the written blend: odds k for countries absent from train (derived from data, no names)
+def unseen_variants(model="lgbm2_ce", w=0.5, mode="asis", ks=(0.5, 2.0, 3.0), name="blend", base="ce_full_v1"):
+    D.NAME = f"blend_{w}_{mode}"
+    u_te = union("test", model)
+    d, info = owned(u_te, mix(u_te, w, mode), "test")
+    iso = pickle.load(open(work("models", f"iso_{D.NAME}.pkl"), "rb"))
+    unseen = sorted(set(info["country"]) - set(D.s1_table("train")[1]))
+    raw = path("output_dir") / "candidates" / f"{name}_raw"
+    for k in ks:
+        write_out(d, info, iso, {c: k for c in unseen}, u_te, model, f"{name}_unseen_k{k:g}", {"w": w, "mode": mode, "unseen_k": k},
+                  base, cand_from=raw)
+
+
+# OOF (live S1) curve of one odds multiplier on seen-country p at decode time: isotonic + gate fitted on unscaled p
+# (as on test), k applied before isotonic. Precision ~0.9989, so the loss is recall; k > 1 trades some back.
+def seen_k_curve(model="lgbm2_ce", w=0.5, mode="asis", ks=(1.0, 1.25, 1.5, 2.0, 3.0)):
+    import lightgbm as lgb
+    D.NAME = f"blend_{w}_{mode}_kcurve"
+    u, live = union("train", model), live_mask("train")
+    d, info = owned(u, mix(u, w, mode), "train", live)
+    del u
+    fold, p, n = info["fold"], d["p"].values, len(info["keys"])
+    f = fold[d["code"].values]
+    isos = {k: D.iso().fit(p[f != k], d["label"].values[f != k]) for k in np.unique(f)}
+    iso_q = lambda pp: sum(np.where(f == k, isos[k].predict(pp), 0.0) for k in isos)  # each fold's own isotonic
+    d["q"] = iso_q(p)
+    D.fit_gate(D.gate_frame(d, info, "train"), (info["G"] > 0).astype(int), fold)  # saves fold gate models
+    gms = {k: lgb.Booster(model_file=str(work("models", f"gate_{D.NAME}_fold{k}.txt"))) for k in np.unique(fold)}
+    res = {}
+    for kk in ks:
+        dk = d.assign(q=iso_q(p * kk / (p * kk + 1 - p)))
+        g = D.gate_frame(dk, info, "train")
+        gate = np.zeros(n)
+        for k, m in gms.items():
+            gate[fold == k] = m.predict(g.loc[fold == k, D.GATE_FEATS])
+        kc, t, fs = D.score(dk, info, D.expf_mask(dk, n, gate))
+        res[kk] = {**D.summary(fs, info), "precision": round(float(t.sum() / max(kc.sum(), 1)), 5), "links": int(kc.sum())}
+        print(f"seen k={kk}: {res[kk]}", flush=True)
+    json.dump(res, open(work("reports", "blend_seen_k_curve.json"), "w"), indent=1)
+    return res
