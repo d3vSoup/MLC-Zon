@@ -195,7 +195,7 @@ if __name__ == "__main__":
 
 # round-2 variant on an existing LOCO run: extra feature files, pseudo-labels on the unseen country,
 # and/or per-country percentile copies of chosen features (qnorm)
-def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None, synth_w=1.0, keep=False):
+def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None, synth_w=1.0, keep=False, drop=()):
     src = {"us2in": "US", "in2us": "India"}[direction]
     rounds = rounds or CFG["lgbm"]["num_boost_round"]
     s1 = read_tsv(source_file("train", 1), usecols=["entity_id", "country"])
@@ -203,14 +203,15 @@ def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None
     t = pq.read_table(work("loco", direction, "r2.parquet"))
     d = t.select(["s1", "row", "label"]).to_pandas()
     rows = d["row"].values
-    parts = [t.drop(["s1", "cand", "row", "label"])]
+    parts = [t.drop(["s1", "cand", "row", "label"] + [c for c in drop if c in t.column_names])]
     if extra:
         from ber.features import names2, numbers
         for e in extra:
             f = work("loco", direction, f"{e}.parquet")
             if not f.exists():
                 numbers.run("train", force=True, rows=rows, out=f) if e == "num" else names2.run("train", rows, f, by_group=(e == "names2c"))
-            parts.append(pq.read_table(f))
+            x = pq.read_table(f)
+            parts.append(x.drop([c for c in drop if c in x.column_names]))
     feats = [c for tb in parts for c in tb.column_names]
     n = len(d)
     if synth:  # synthetic pairs of the unseen country only (its labels are synthetic; real labels never used)
@@ -265,7 +266,7 @@ def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None
     pp = t.column("p").to_numpy().copy()
     pp[rows] = out
     tag = f"{direction}_{'_'.join(extra) or 'base'}{'_pseudo' if pseudo else ''}{'_qn' if qnorm else ''}" \
-          f"{f'_synth{synth_w}' if synth else ''}"
+          f"{f'_synth{synth_w}' if synth else ''}{'_drop' + str(len(drop)) if drop else ''}"
     pq.write_table(t.set_column(2, "p", pa.array(pp)), work("preds", f"oof_loco_{tag}.parquet"))
     del t, pp
     res = evaluate(f"loco_{tag}", src, direction)
