@@ -71,3 +71,32 @@ sib_w_other_rec      1     0.7931       0.8473  0.251
     p_share_rec      0     0.5500       0.6300  0.182
  hn_absdiff_log      1     1.1396       0.7598 -0.169
 ```
+
+## Reading (Sun 00:15)
+
+**Q1. Which error types grow when the country is unseen?** Errors grow 4-15x (US->IN: FN 53 -> 241, FP 10 -> 156 per
+1k S1; IN->US: FN 54 -> 98, FP 13 -> 51). Unseen false positives are confident (median q 0.985 / 0.955): ranking, not
+calibration (decode rules cannot fix them; see EXPERIMENTS 21:52). India-unseen FNs are mostly "same house number,
+different core name" (num_same 49%, core_eq 13%): transliterated / noisy India names the US-trained model does not
+trust. Generic-word twins are rare in every cell (gen_swap <= 1.3%).
+
+**Q2. Which high-importance features shift most?** House-number *format* features: `hn_suffix` (+-1.0 SD),
+`hn_in_other` (0.7-0.9), `n_num_a` / `n_num_b` (0.6-0.7: India addresses carry ~1.9 numbers, US ~1.2), `num_jacc`,
+`hn_reldiff` (0.6-0.75). The shift flips sign with the direction, i.e. the features encode each country's address
+format. Name IDF / generic features shift less (`v2_idf_jacc` 0.3-0.45 SD), consistent with names2c failing LOCO.
+
+**Q3. Country-specific priors vs transferable relations.**
+- priors fitted on a split or tied to a format: IDF-Jaccard (`nc_idf_jacc`, `ad_idf_jacc`, `v2_idf_jacc`), generic
+  sets (`rare_*`), frequency shares (`f_*`), number counts (`n_num_a`, `n_num_b`), `hn_in_other`, `hn_suffix`.
+- transferable relations: within-S1 / within-record ranks, margins and shares (`*_rank`, `*_margin_rec`, `*_gap_s1`,
+  `p_share_*`), sibling agreement (`sib_*`), exact-match flags (`house_eq`, `postal`, `v2_eq`, `legal_eq`), string
+  similarities of normalized text.
+
+## Ranked fix hypotheses
+1. **Drop raw format-count features** (`n_num_a`, `n_num_b`, `hn_in_other`): largest measured shift, no matching
+   meaning. Differs from the dropped per-country quantile normalization (-0.0014): that rescaled features within a
+   country (and still let the model use format); this removes the format signal. Size: unknown, LOCO test running.
+   France addresses are US-like (one house number), so the France effect is expected to be small either way.
+2. Per-country fitting of name priors (names2c): **tested, failed LOCO** (-0.0007 / -0.0003).
+3. Name-trust for noisy/transliterated names (India-unseen FNs): India-specific (native scripts); low relevance for
+   France; not tonight.
