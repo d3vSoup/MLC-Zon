@@ -1,0 +1,46 @@
+{
+ "missed_true_pairs": 133898,
+ "ceiling_now": 0.99407,
+ "options": {
+  "fw_K20": {
+   "recovered": 20091,
+   "new_pairs_M": 92.26,
+   "ceiling_gain": 0.00092
+  },
+  "fw_K30": {
+   "recovered": 34228,
+   "new_pairs_M": 188.38,
+   "ceiling_gain": 0.00155
+  },
+  "hh_K20": {
+   "recovered": 17570,
+   "new_pairs_M": 87.23,
+   "ceiling_gain": 0.00077
+  },
+  "hh_K30": {
+   "recovered": 31440,
+   "new_pairs_M": 183.06,
+   "ceiling_gain": 0.0014
+  },
+  "fw_hh_K20": {
+   "recovered": 29980,
+   "new_pairs_M": 154.87,
+   "ceiling_gain": 0.00136
+  },
+  "fw_hh_K30": {
+   "recovered": 47631,
+   "new_pairs_M": 305.67,
+   "ceiling_gain": 0.00216
+  },
+  "char_K10": {
+   "recovered": 12929,
+   "new_pairs_M": 84.54,
+   "ceiling_gain": 0.00056
+  },
+  "char_K10+fw_hh_K20": {
+   "recovered": 38674,
+   "new_pairs_M": 232.76,
+   "ceiling_gain": 0.00172
+  }
+ }
+}
