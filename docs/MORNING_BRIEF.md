@@ -1,4 +1,15 @@
-# Morning brief — Sun 27 Sep (written 00:20, updated as jobs finish)
+# Morning brief — Sun 27 Sep (written 00:20, updated 01:00)
+
+## Timeline (freeze moved to ~06:00)
+- 05:30 upload blend_raw; Muaz sends its score + "go freeze" together.
+- ~06:00 freeze: set config (round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce, blend.enabled true,
+  blend.unseen_k = A/B winner), commit, tag `freeze-2026-09-27`, push main + tag, `tools/backup.sh` (tar to Drive),
+  delete work/ caches (abort if free < 45 GB), `FREEZE_REF=freeze-2026-09-27 tools/cleanroom.sh full <ref tsv>`.
+- ~11:30 clean room done: its blend stage writes France k 1 (`blend_unseen_k1`, = blend_raw), the exact blend_cal k
+  0.18385635887853335 (`blend_unseen_k0.183856`) and k 0.5 (`blend_unseen_k0.5`), each validated with md5;
+  accept if OOF within 0.0005 of the reference (0.99032).
+- Upload the clean-room file at the chosen k (must be the LAST upload). Zip + doc done by 15:00.
+
 
 ## Night outcome in one line
 Nothing new beat `blend_cal`'s model. names2c failed LOCO (-0.0007 / -0.0003), the CE2 half-ingest gained only

@@ -10,7 +10,8 @@ MAIN=$(cd "$(dirname "$0")/.." && pwd)
 DEST=$(dirname "$MAIN")/MLC-Zon-clean-$MODE
 case $MODE in sample|full) ;; *) echo "mode must be sample or full"; exit 1 ;; esac
 rm -rf "$DEST"
-git clone -q "$(git -C "$MAIN" remote get-url origin)" "$DEST"
+# FREEZE_REF=<tag>: clone exactly the pushed freeze tag (default: origin's default branch)
+git clone -q ${FREEZE_REF:+--branch "$FREEZE_REF"} "$(git -C "$MAIN" remote get-url origin)" "$DEST"
 echo "clone at $(git -C "$DEST" log --oneline -1)"
 SR=$DEST/student_resource; CODE=$SR/code/business_entity_resolution
 cd "$CODE"
