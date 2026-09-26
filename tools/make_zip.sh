@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # build <team>_submission.zip in the exact required layout. code = committed HEAD (git archive), so no data,
 # caches, venv or credentials can slip in; big TSVs are hard-linked into the staging dir (no copy).
-# usage: tools/make_zip.sh <team_name> [matching_results.tsv]   (default: student_resource/output/matching_results.tsv)
+# usage: tools/make_zip.sh <team_name> [matching_results.tsv]   (default: student_resource/output/matching_results.tsv;
+#        candidate_pairs.tsv is taken from the same folder when it exists there)
 set -euo pipefail
 TEAM=$1
 cd "$(dirname "$0")/.."
@@ -18,7 +19,11 @@ mv "$ST/student_resource/code" "$ST/code"; rmdir "$ST/student_resource"
 # blend partner's stage-2 preds + id maps (gitignored parquet inputs); README/REPRODUCE come with git archive
 [ -e "$C/src/razan/oof_s2ce.parquet" ] && cp -r "$C/src/razan/"*.parquet "$C/src/razan/ids" "$ST/code/business_entity_resolution/src/razan/"
 ln "$MATCH" "$ST/output/matching_results.tsv"
-ln student_resource/output/candidate_pairs.tsv "$ST/output/candidate_pairs.tsv"
+# candidates must be the set the matches were decoded from: the one next to the matching file if present (blend = union)
+CAND=$(dirname "$MATCH")/candidate_pairs.tsv
+[ -e "$CAND" ] || CAND=student_resource/output/candidate_pairs.tsv
+echo "candidates from: $CAND"
+ln "$CAND" "$ST/output/candidate_pairs.tsv"
 cp student_resource/Documentation_template.md "$ST/"
 # refuse anything that looks like a secret or a cache
 bad=$(find "$ST" \( -name '.env' -o -name 'kaggle.json' -o -name '*.pem' -o -name '__pycache__' -o -name '.pytest_cache' -o -name '.venv' \) -print)
