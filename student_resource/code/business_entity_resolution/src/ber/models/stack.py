@@ -68,10 +68,10 @@ def fit(name=None, frac=1.0, rounds=None, test=True, use_ce=False, extra=(), hal
             imp.append(pd.Series(m.feature_importance("gain"), index=feats))
             print(f"round2 fold {k} best_iter {m.best_iteration} logloss "
                   f"{m.best_score['valid_0']['binary_logloss']:.5f}", flush=True)
+    del X, full  # free train matrix before the full-length preds + test table load (OOM at 11G cap otherwise)
     (pd.concat(imp, axis=1).mean(axis=1).sort_values(ascending=False) / 1e6).round(3) \
         .to_csv(work("reports", f"importance_{name or R2['name']}.tsv"), sep="\t")
     write_preds("train", rows[mine], oof[mine], name)
-    del X, full  # free train matrix before the test table loads (OOM at 11.5G cap otherwise)
     if test:
         predict_test(name, use_ce, extra, ks[:CFG["lgbm"]["test_models"]])
 

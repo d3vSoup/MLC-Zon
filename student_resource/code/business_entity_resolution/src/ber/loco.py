@@ -42,7 +42,8 @@ def fit_predict(X, y, fold, is_src, rounds, feats):
 
 
 # round 1: train on sampled S1 of the source country (as in production), predict every train pair
-def round1(src, ctry_of, tag):
+# fold0_only: just refit + save the fold-0 model (it scores the other country and synthetic pairs)
+def round1(src, ctry_of, tag, fold0_only=False):
     fm = fold_map()
     feats = [c for c in pq.ParquetFile(work("train", "feats.parquet")).schema_arrow.names if c not in ID]
     labels = pq.read_table(work("train", "cands.parquet"), columns=["label"]).column("label").to_numpy()
@@ -63,11 +64,14 @@ def round1(src, ctry_of, tag):
     del X
     fs = fold_all[samp]
     models = []
-    for k in range(CFG["n_folds"]):
+    for k in range(1 if fold0_only else CFG["n_folds"]):
         with timed(f"loco {tag} round1 fold {k}"):
             t, v = full.subset(np.flatnonzero(fs != k)), full.subset(np.flatnonzero(fs == k))
             models.append(lgb.train(p, t, CFG["lgbm"]["num_boost_round"], valid_sets=[v],
                                     callbacks=[lgb.early_stopping(100, verbose=False)]))
+    models[0].save_model(work("loco", tag, "r1_fold0.txt"))
+    if fold0_only:
+        return
     del full
     out = np.empty(len(s1), np.float32)
     off = 0
@@ -185,7 +189,7 @@ if __name__ == "__main__":
 
 # round-2 variant on an existing LOCO run: extra feature files, pseudo-labels on the unseen country,
 # and/or per-country percentile copies of chosen features (qnorm)
-def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=()):
+def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=(), synth=None, synth_w=1.0):
     src = {"us2in": "US", "in2us": "India"}[direction]
     rounds = rounds or CFG["lgbm"]["num_boost_round"]
     s1 = read_tsv(source_file("train", 1), usecols=["entity_id", "country"])
@@ -202,13 +206,26 @@ def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=()):
                 numbers.run("train", force=True, rows=rows, out=f) if e == "num" else names2.run("train", rows, f)
             parts.append(pq.read_table(f))
     feats = [c for tb in parts for c in tb.column_names]
-    X = np.empty((len(d), len(feats) + len(qnorm)), np.float32)  # one float32 matrix, filled column by column
+    n = len(d)
+    if synth:  # synthetic pairs of the unseen country only (its labels are synthetic; real labels never used)
+        tgt = {"us2in": "India", "in2us": "US"}[direction]
+        sd = pq.read_table(f"{synth}/work/loco/{direction}/r2.parquet")
+        keep = ctry_of.reindex(sd.column("s1").to_numpy()).values == tgt
+        sp = [sd.drop(["s1", "cand", "row", "label"])] + [pq.read_table(f"{synth}/work/loco/{direction}/{e}.parquet") for e in extra]
+        assert [c for tb in sp for c in tb.column_names] == feats, "synthetic feature columns differ"
+        s_s1, s_y = sd.column("s1").to_numpy()[keep], sd.column("label").to_numpy()[keep]
+        print(f"synthetic {tgt} rows {int(keep.sum())}, pos rate {s_y.mean():.4f}, weight {synth_w}", flush=True)
+    X = np.empty((n + (int(keep.sum()) if synth else 0), len(feats) + len(qnorm)), np.float32)  # filled column by column
     for j, col in enumerate(c for tb in parts for c in tb.columns):
-        X[:, j] = col.to_numpy()
+        X[:n, j] = col.to_numpy()
+    if synth:
+        for j, col in enumerate(c for tb in sp for c in tb.columns):
+            X[n:, j] = col.to_numpy()[keep]
+        del sd, sp
     del t, parts
     ctry = ctry_of.reindex(d["s1"].values).values
     for j, f in enumerate(qnorm):  # percentile within the pair's country, over this split's rows; no labels used
-        X[:, len(feats) + j] = pd.Series(X[:, feats.index(f)]).groupby(ctry).rank(pct=True).values
+        X[:n, len(feats) + j] = pd.Series(X[:n, feats.index(f)]).groupby(ctry).rank(pct=True).values
     feats += [f"{f}_qc" for f in qnorm]
     is_src = ctry_of.reindex(d["s1"].values).values == src
     fold = fold_map()["fold"].reindex(d["s1"].values).values
@@ -220,23 +237,48 @@ def variant(direction, extra=(), pseudo=False, rounds=None, qnorm=()):
         y[pos], y[neg] = 1, 0
         train_rows |= pos | neg
         print(f"pseudo-labels: {int(pos.sum())} pos, {int(neg.sum())} neg of {int((~is_src).sum())} unseen rows")
+    wt = np.ones(len(X), np.float32)
+    if synth:  # append synthetic rows: always trained on, folds by their (real) S1, never scored
+        train_rows = np.r_[train_rows, np.ones(len(X) - n, bool)]
+        y = np.r_[y, s_y]
+        fold_all = np.r_[fold, fold_map()["fold"].reindex(s_s1).values]
+        wt[n:] = synth_w
+    else:
+        fold_all = fold
     p = params(rounds)
     out = np.empty(len(d), np.float32)
-    full = lgb.Dataset(X[train_rows], y[train_rows], feature_name=feats, params=p).construct()
-    tr_idx, f_tr = np.flatnonzero(train_rows), fold[train_rows]
+    full = lgb.Dataset(X[train_rows], y[train_rows], weight=wt[train_rows], feature_name=feats, params=p).construct()
+    tr_idx, f_tr = np.flatnonzero(train_rows), fold_all[train_rows]
     models = []
     for k in range(CFG["n_folds"]):  # folds by S1 across both countries: every row is predicted out-of-fold
         t, v = full.subset(np.flatnonzero(f_tr != k)), full.subset(np.flatnonzero(f_tr == k))
         m = lgb.train(p, t, rounds, valid_sets=[v], callbacks=[lgb.early_stopping(100, verbose=False)])
-        out[fold == k] = m.predict(X[fold == k], num_threads=CFG["n_jobs"])
+        out[fold == k] = m.predict(X[:n][fold == k], num_threads=CFG["n_jobs"])
     del X, full, t, v, m, d  # free ~5 GB before evaluate loads all 153M pair preds
     t = pq.read_table(work("loco", direction, "oof_r1.parquet"))
     pp = t.column("p").to_numpy().copy()
     pp[rows] = out
-    tag = f"{direction}_{'_'.join(extra) or 'base'}{'_pseudo' if pseudo else ''}{'_qn' if qnorm else ''}"
+    tag = f"{direction}_{'_'.join(extra) or 'base'}{'_pseudo' if pseudo else ''}{'_qn' if qnorm else ''}" \
+          f"{f'_synth{synth_w}' if synth else ''}"
     pq.write_table(t.set_column(2, "p", pa.array(pp)), work("preds", f"oof_loco_{tag}.parquet"))
     del t, pp
     res = evaluate(f"loco_{tag}", src, direction)
     json.dump(res, open(work("reports", f"loco_{tag}.json"), "w"), indent=1)
     print(tag, {k: {x: v[x] for x in ("F0.5", "singleton_only", "precision")} for k, v in res.items()})
     work("preds", f"oof_loco_{tag}.parquet").unlink()
+
+
+# run inside the synth root (BER_ROOT): score synthetic pairs with the real source-country fold-0 round-1 model,
+# then the same round-2 inputs as real rows (group features on hard pairs + soft numbers + v2 names)
+def synth_prep(direction, model_file):
+    from ber.features import names2, numbers
+    m = lgb.Booster(model_file=model_file)
+    ps = [m.predict(b.to_pandas()[m.feature_name()], num_threads=CFG["n_jobs"]) for b in batches("train", m.feature_name())]
+    t = pq.read_table(work("train", "cands.parquet"), columns=["s1", "cand"])
+    r1 = work("loco", direction, "oof_r1.parquet")
+    pq.write_table(t.append_column("p", pa.array(np.concatenate(ps).astype(np.float32))), r1)
+    r2 = work("loco", direction, "r2.parquet")
+    graph.run("train", force=True, preds=r1, out=r2)
+    rows = pq.read_table(r2, columns=["row"]).column(0).to_numpy()
+    numbers.run("train", force=True, rows=rows, out=work("loco", direction, "num.parquet"))
+    names2.run("train", rows, work("loco", direction, "names2.parquet"))

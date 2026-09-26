@@ -59,3 +59,8 @@ ce:                     # cross-encoder (xlm-roberta-base) data export; scored o
 
 names2:                 # round-2 name features on a v2 name form (dotted acronyms joined, legal + stopwords out)
   generic_df: 0.001     # token in more than 0.1% of the split's S1 names = generic (data-driven, country-agnostic)
+
+synth:                  # self-supervised synthetic pairs for unseen countries (ber.synth)
+  frac: 0.5             # share of a country's S1 used as the synthetic universe
+  ghost: 0.26           # share of that universe dropped from S1: their noisy copies match nothing (real: 26% of S2/S3)
+  weight: 1.0           # LightGBM sample weight of synthetic rows (LOCO picks 0.3 or 1.0)

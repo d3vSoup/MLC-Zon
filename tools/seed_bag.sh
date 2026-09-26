@@ -12,6 +12,7 @@ V=("{'seed': 1, 'feature_fraction': 0.7, 'bagging_fraction': 0.8}"
    "{'seed': 2, 'feature_fraction': 0.8, 'bagging_fraction': 0.7}"
    "{'seed': 3, 'feature_fraction': 0.9, 'bagging_fraction': 0.9}")
 for i in 1 2 3; do
+  [ -e ../../../work/preds/test_${B}_s$i.parquet ] && continue  # resume: seed already done
   $PY -c "
 from ber.io import CFG; CFG['round2'].update(use_ce=True, ce_models=$CEM, ce_mix='$MIX')
 from ber.models import stack
