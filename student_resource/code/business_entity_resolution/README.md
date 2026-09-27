@@ -16,24 +16,58 @@ No network access is needed after the pip install. No external data, APIs, or ge
 
 Paths are set in `src/configs/default.yaml`, relative to `<root>`. Override the root with `BER_ROOT=/path`.
 
-## Cross-encoder scores (only if `round2.use_ce: true`)
+## What regenerates what
 
-`src/ce_scores/ce_scores_{train,test}.parquet` (s1, cand, ce_p) ship with this folder. They come from
-`src/gpu/ce_train_predict.py` (xlm-roberta-base, MIT) run on 2x T4 GPUs (Kaggle), about X h per half, then
-`python -m ber.ce_ingest <dir_half1> <dir_half2>`. The scores are keyed by entity ids, so the CPU pipeline
-uses them whatever the row order of its candidate list. To regenerate them: `python -m ber.cli ce_export`,
-run the GPU script with `--half 1` and `--half 2`, then `ber.ce_ingest`.
+| step | where | hardware | inputs | output shipped in this folder |
+|---|---|---|---|---|
+| A. our pipeline + blend (`src/run_all.sh`) | this folder | CPU, 16 GB RAM | challenge data + the two shipped inputs below | `output/matching_results.tsv`, `output/candidate_pairs.tsv` |
+| B. our cross-encoder scores | `src/gpu/ce_train_predict.py` | Kaggle GPU (2x T4) | challenge data (via `ber.cli ce_export`) | `src/ce_scores/ce_scores_{train,test}.parquet` |
+| C. partner pipeline predictions (QTpies) | `src/razan/src/` + `src/razan/kaggle_runner.py` | Kaggle CPU + GPU (2x T4) | challenge data | `src/razan/{oof_s2ce,pred_test_s2ce,dropped_train_s1}.parquet`, `src/razan/ids/` |
 
-## Blend partner's predictions (only if `blend.enabled: true`)
+Step A regenerates both output files from the challenge data plus the shipped B and C outputs. A clean-room run
+(fresh clone of the frozen tag, fresh environment, dataset only, 320 min on 16 GB RAM + swap) reproduced the
+candidate set byte for byte and the blend OOF exactly (0.99032). 3,451 of 1,732,544 S1 rows (0.2%) of the final
+file differed from the reference run, with links added and removed in balance. That drift comes from the model
+stages, not from blocking. B and C are GPU steps; their code,
+settings and commands are in this folder, and re-running them reproduces the inputs up to GPU / multi-thread noise
+(fp16 cuDNN kernels, LightGBM without `deterministic` in C: about 1e-4 of OOF F0.5), so a full rerun of B or C gives a
+near-identical, not byte-identical, final file.
 
-`src/razan/` ships the stage-2 pair probabilities of a teammate's independent pipeline (QTpies M5: train out-of-fold
-`oof_s2ce.parquet`, test `pred_test_s2ce.parquet`), its id maps (`ids/`) and its dropped-S1 list; see
-`src/razan/README.md` (files, SHA-256) and `src/razan/REPRODUCE.md` (how that pipeline regenerates them on Kaggle).
+## Environments
+
+- `requirements.txt`: step A (Python 3.11, all transitive pins).
+- `requirements_ce_gpu.txt`: step B, on the Kaggle GPU image.
+- `requirements_qtpies.txt` (+ `requirements_qtpies_gpu.txt` for its cross-encoders): step C, Python 3.12. It is a
+  separate environment because its pins conflict with step A's (lightgbm, numpy, pyarrow, scikit-learn, scipy).
+
+## B. Cross-encoder scores (only if `round2.use_ce: true`)
+
+`src/ce_scores/ce_scores_{train,test}.parquet` (s1, cand, ce_p) come from `src/gpu/ce_train_predict.py`
+(xlm-roberta-base, MIT) run on 2x Tesla T4 GPUs (Kaggle, torch 2.10.0+cu128): 5.61 h (half 1) and 5.80 h (half 2) per run, then
+`python -m ber.ce_ingest <dir_half1> <dir_half2>`. The scores are keyed by entity ids, so the CPU pipeline uses them
+whatever the row order of its candidate list. To regenerate them: `python -m ber.cli ce_export`, run the GPU script
+with `--half 1` and `--half 2`, then `ber.ce_ingest`.
+
+## C. Partner pipeline predictions (only if `blend.enabled: true`)
+
+`src/razan/` ships the stage-2 pair probabilities of a teammate's independent pipeline (QTpies M5, or M8 if chosen as the final: train
+out-of-fold `oof_s2ce.parquet`, test `pred_test_s2ce.parquet`), its id maps (`ids/`) and its dropped-S1 list
+(`src/razan/README.md`: files and SHA-256). Its code is in `src/razan/src/` (the exact snapshot its final Kaggle
+kernel ran; SHA-256 over the sorted `.py` files `4594535af76c` = the M8 kernel, which also reruns M5's steps) with the job runner `src/razan/kaggle_runner.py`. To regenerate:
+1. Put `src/razan/src/` at `code/business_entity_resolution/src/` and `kaggle_runner.py` at
+   `code/business_entity_resolution/` of a working copy (the layout both files expect), with the challenge data at
+   `student_resource/dataset/`.
+2. Follow `src/razan/REPRODUCE.md` (steps 1-12: normalise, block, features, stage 1, pairwise cross-encoders, M5); for M8 also `src/razan/REPRODUCE_M8.md` (steps 13-19: twin world, cluster cross-encoder, M8).
+   Each step is `python kaggle_runner.py chain <batch>`; the tables there list hardware, settings, inputs and outputs.
+   Datasets used are uploads of the challenge data and of intermediate outputs; no external data.
+3. Copy `oof_s2ce.parquet`, `pred_test_s2ce.parquet`, `dropped_train_s1.parquet` and `ids/` into `src/razan/`.
+
 The `blend` stage (last in `run_all.sh`) joins them to ours by entity ids: candidates = union of both pipelines,
-p = 0.5 x ours + 0.5 x theirs (a pair only one side scored keeps its p), isotonic + gate + expected-F decode fitted on
-their density-matched live train S1, then label-free test-time calibration (`ber/calibrate.py`: odds factor for
-countries absent from train by empty-rate matching; the seen-country shift is applied only if its fold-vs-fold
-null test passes). It writes `output/candidates/blend_{raw,cal}/` and copies the chosen file to `output/`.
+p = w x ours + (1 - w) x theirs (`blend.w` in the config; a pair only one side scored keeps its p), isotonic + gate +
+expected-F decode fitted on their density-matched live train S1, then label-free test-time calibration
+(`ber/calibrate.py`: odds factor for countries absent from train, `blend.unseen_k`: a fixed value or `auto` =
+empty-rate matching; the seen-country shift is applied only if its fold-vs-fold null test passes). It writes
+`output/candidates/blend_{raw,cal}/` and copies the chosen file to `output/`.
 
 ## Run (CPU only)
 
@@ -56,7 +90,8 @@ change it if you want byte-identical files.
 
 ## Hardware and time (measured)
 
-Intel i7-11800H (16 threads), 16 GB RAM (+ swap), no GPU used. About 5.2 h end to end: normalize 7 min, blocking
+Intel i7-11800H (16 threads), 16 GB RAM + swap (train blocking peaked at 10.4 GB RAM + 6.75 GB swap), no GPU used.
+Clean-room run 27 Sep: 320 min end to end. Earlier development timings (about 5.2 h): normalize 7 min, blocking
 92 min, features 60 min, round-1 train 52 min + OOF predict 14 min, test predict 13 min, graph 2 min, round 2 55 min,
 decode 4 min, write + validation 8 min. Peak RAM about 10 GB; about 40 GB of disk for `work/`.
 Per-stage times are appended to `work/reports/timings.tsv`.

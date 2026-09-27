@@ -40,3 +40,14 @@ Needs polars 1.44.2, numpy, numba 0.63.1. Result checked byte-identical to `sub1
 | `ids/n_test_s1.parquet` | 1,732,544 | `5fceb484aaad0e9d…` |
 | `ids/n_test_s2.parquet` | 4,887,273 | `5402275dbb9870a7…` |
 | `ids/n_test_s3.parquet` | 5,082,316 | `88cc8b948b7eab3e…` |
+
+## Code snapshot (added 27 Sep)
+- `src/`: the exact code of the partner's final Kaggle kernels (SHA-256 over the sorted `src/*.py`, contents
+  concatenated, first 12 hex `4594535af76c` = the `qtpies-m8` kernel snapshot = git tag `m8`, commit `051ad18`, of
+  github.com/razancodes/MLC-raZON). Earlier kernels (M5's steps 1-12) ran older snapshots. They differ from this one
+  only additively, behind env switches whose defaults are off, so this code reruns them (`REPRODUCE_M8.md`, code
+  version section).
+- `kaggle_runner.py`: the job runner at tag `m8`. `AUDIT.md`: the partner's label-free test audit.
+  `SRC_README.txt`: how `src/` was extracted.
+- `REPRODUCE.md`: steps 1-12 (M5). `REPRODUCE_M8.md`: steps 13-19 (twin world, cluster cross-encoder, M8).
+- The data files in this folder are the ones the shipped blend used (see the table above and the Documentation).

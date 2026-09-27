@@ -1,11 +1,11 @@
 # ML Challenge 2026: Business Entity Resolution Solution Template
 
-**Team Name:** [TO CONFIRM]  
-**Team Members:** [TO CONFIRM: full names of Muaz, Razan, Soup, Ankit]  
+**Team Name:** QTpies  
+**Team Members:** Muhammed Razan (leader), Muaz Ismail Mohammed, Ankit Ranjan, Souparno Chakraborty  
 **Submission Date:** 27 September 2026
 
-> Draft status (Sat 26 Sep): numbers below are from `EXPERIMENTS.md`. Items marked [TO CONFIRM] or [FINAL] are filled
-> after the final configuration is chosen on Sunday.
+> Numbers come from `EXPERIMENTS.md` (the team's experiment log). Items marked [FINAL] are filled when the final
+> upload is chosen.
 
 ---
 
@@ -28,8 +28,9 @@ leaderboard score is 0.981 [FINAL]. No external data, APIs or lookups are used.
 Findings from EDA on train (reports in `work/reports/phase0_facts.md`):
 
 - **Countries.** Train has US (60%) and India (40%) only. Test adds **France: 15% of test S1, never seen in train.**
-  Generalising to an unseen country became the main design constraint: country is never a model feature, and no
-  code path hard-codes a country list.
+  Generalising to an unseen country became the main design constraint: in our pipeline country is never a model
+  feature and no code path hard-codes a country list (countries absent from train are found by a data rule). The
+  partner pipeline's training augmentation is keyed by country name (disclosed in section 4.5).
 - **Singletons.** 5.6% of train S1 have no true match. The metric scores them 1.0 only for an empty prediction, so
   false merges on singletons are expensive.
 - **Group sizes.** A mean of 3.46 true matches per S1; 77% of S1 have 2 or more matches from the same source.
@@ -159,9 +160,13 @@ epoch, fp16, 2x NVIDIA T4 on Kaggle.
   10.32M test pairs.
 - **Coverage:** CE scores reach 93% of round-2 pairs and 98.5-99.3% of the top-3 pairs per S1 (100% of top-3 pairs
   with p > 0.5).
-- **Training time:** [TO CONFIRM: GPU hours per half, from Ankit's and Soup's Kaggle logs].
-- **Second cross-encoder:** `intfloat/multilingual-e5-base` (MIT, about 278M parameters), seed 43, same halves and
-  bands. [FINAL: used or not, and in which form (separate feature or averaged)].
+- **Compute (Kaggle run logs):** 2x NVIDIA Tesla T4, torch 2.10.0+cu128. Half 1: 5.61 h per run (training 18,750
+  steps in 2.17 h, then scoring); half 2: 5.80 h (training 2.15 h). The logged runs started from step 0. Earlier
+  notebook versions (timing runs) cannot be read from the Kaggle CLI and are not counted.
+- **Second cross-encoder (not used in the final):** `intfloat/multilingual-e5-base` (MIT, about 278M parameters), seed
+  43, same halves and bands. Half 1 ran 5.65 h on the same hardware; half 2 took about 12 h on 2x T4 (approx.,
+  team-reported; the notebook is not shared). It correlates at 0.988 with the first cross-encoder. Added as a second
+  feature on the half where it existed, it gave +0.00015 OOF, below our +0.0003 adoption gate, so it was dropped.
 
 **CE scores ship as inputs.** GPU inference is not part of the CPU pipeline. The scores are shipped in
 `code/business_entity_resolution/src/ce_scores/ce_scores_{train,test}.parquet` (columns s1, cand, ce_p), keyed by
@@ -173,10 +178,15 @@ entity ids, so any run joins them whatever its row order. To regenerate them: ru
 trains on all hard train pairs, 5 folds by S1; test uses the fold-0 model. Pairs below the hard threshold keep their
 round-1 p. Seed bagging (3 extra seeds) was started and dropped for time; the base model is kept.
 
-**Pair-level blend with a second pipeline (QTpies M5)** [FINAL: used or not]. A teammate's independent pipeline
-(char-4-gram + word TF-IDF blocking, 50 features, a collective two-stage LightGBM and two `intfloat/multilingual-e5-small`
-cross-encoders, MIT, 118M parameters; its own REPRODUCE.md is shipped in `src/razan/`) provides stage-2 pair
-probabilities for train (out-of-fold) and test, keyed by entity ids and shipped as inputs in `src/razan/`.
+**Pair-level blend with a second pipeline (QTpies).** A teammate's independent pipeline provides stage-2 pair
+probabilities for train (out-of-fold) and test, keyed by entity ids and shipped as inputs in `src/razan/` with its
+code (`src/razan/src/`, the exact snapshot its final Kaggle kernel ran) and its REPRODUCE files.
+- **M5:** char-4-gram + word TF-IDF blocking, 50 features, a collective two-stage LightGBM and two pairwise
+  `intfloat/multilingual-e5-small` cross-encoders (MIT, 118M parameters). OOF 0.98820 in its density-matched world.
+- **M8 = M5 + twin-world training + a cluster cross-encoder.** Stage 2 is retrained with 116,106 synthetic "twin"
+  negative pairs generated from train rows (section 4.5), and a set-aware cross-encoder (the same e5-small backbone)
+  reads one S1 with all its stage-2 candidate rows in one sequence. Clean OOF 0.98849; public 0.984591 alone.
+- **Used in the final:** [FINAL: M8 at w = ... / M5 at w = 0.5].
 - Candidate set = union of both pipelines' final candidates (ours + 634,542 test pairs only its blocking found).
 - p = 0.5 x ours + 0.5 x theirs; a pair scored by one side only keeps that side's p (this beat "missing = 0" at every
   weight on OOF: 0.99032 vs 0.98950 at w = 0.5).
@@ -185,8 +195,9 @@ probabilities for train (out-of-fold) and test, keyed by entity ids and shipped 
 - Evaluated on their 1,853,766 "live" train S1 (their density-matched world: 16% of train S1 hash-dropped so their
   records act as distractors, as on test). Their M5 OOF reproduced exactly (0.98820) before blending.
 
-**All models and libraries (licenses):** xlm-roberta-base (MIT); multilingual-e5-base (MIT) [if used];
-multilingual-e5-small (MIT, blend partner's cross-encoders) [if blend used]; LightGBM
+**All models and libraries (licenses):** xlm-roberta-base (MIT, 278M); multilingual-e5-small (MIT, 118M: the
+partner's pairwise and cluster cross-encoders); multilingual-e5-base (MIT, 278M; tried, not in the final); polars
+(MIT, partner pipeline); LightGBM
 (MIT); indic-transliteration (MIT); sparse_dot_topn (Apache-2.0); rapidfuzz (MIT); scikit-learn (BSD-3-Clause);
 pandas / numpy (BSD-3-Clause); pyarrow (Apache-2.0); regex (Apache-2.0); PyTorch (BSD-3-Clause) and Hugging Face
 transformers (Apache-2.0), GPU script only. Every model is far below the 8B-parameter limit. All pins are in
@@ -239,7 +250,32 @@ isotonic calibration, the odds of p are multiplied by a factor k per S1 country:
   DiD k 0.13), but its per-band profile was sloped (an artifact sign) and the null test failed, so it is not applied.
 - **Countries absent from train (open-set rule, derived from data): empty-rate matching.** k is set by bisection so
   that the share of S1 with an empty prediction equals the seen countries' test empty share + 0.0015 (France:
-  k 0.184, empty 5.25% -> 5.92%) [FINAL: k after the leaderboard A/B].
+  k 0.184, empty 5.25% -> 5.92%). **Leaderboard A/B** on the M5 blend: France k = 1 scored 0.98488 public vs
+  k 0.18385635887853335 0.985131, so down-scaling France was right (about +0.0017 France F). LOCO had predicted the
+  opposite (section 5.3), so for France we trust uploads over LOCO. [FINAL: k on the final blend: the exact value on
+  M5, or re-derived by the same rule on M8.]
+
+### 4.5 Use of test-set statistics and country keys (disclosure)
+
+No test labels are used anywhere. Some label-free statistics of the unlabeled test set shape the final model:
+- **Our pipeline:** the odds of countries absent from train are scaled by a factor chosen so that their share of S1
+  rows with no match equals the seen countries' share plus 0.0015. Generic-word sets and IDF weights for name
+  features are computed per split, so on test S1 names for test pairs.
+- **Partner pipeline (QTpies), all models:** training treats 16% of train S1 as absent, so train matches the test
+  distractor share (38-40% vs 26% in train). Its generic-word features use per-split vocabularies.
+- **Partner M8 only:**
+  - It adds synthetic "twin" negatives generated only from train rows: copies of real records with the house number
+    shifted and a legal suffix added, and copies with one generic name word swapped.
+  - The twin parameters were measured label-free on US test predictions: the shift-size histogram (`DBIN`), 89%
+    positive shifts, 94% added suffixes and 30% two-row groups.
+  - The twin rates are keyed by country name in the configuration: US 0.072 for number twins (none for India), and
+    0.03 for generic-word twins in the US and India. They shape training augmentation only, and every test entity,
+    France included, goes through the same pipeline.
+- **Other country names in the partner code:**
+  - an inactive "France" branch in `calibrate.py:87`, used only when no OOF file is given, so not in any shipped run;
+  - a test-mix weighting (US 0.383, India 0.468, France 0.150), used only to report cross-validation scores.
+- Apart from the twin rates, country enters only as an opaque grouping key. No external data, APIs or lookups are
+  used.
 
 ---
 
@@ -287,6 +323,19 @@ Fold standard deviation of the final OOF: 0.00007.
   leaderboard showed the same: +0.012 public vs +0.005 OOF, with France at 15% of test.
 - The cross-encoder gave +0.004 public vs +0.005 OOF. That is about the US/India share of the gain, so it is roughly
   neutral on France.
+- **Error anatomy of the unseen side (US->IN):** errors grow 4-15x (false negatives 53 -> 241, false positives
+  10 -> 156 per 1k S1), and the false positives are confident (median q 0.985).
+  - 58% of these false positives fit none of our twin types. Of those, 98.7% are decoy records (they belong to no S1)
+    with a near-identical address (median token-set similarity 99.3) and one business word changed in the name.
+  - 75% of them have a door number at the start of the record's address that the S1 address lacks, vs 12.5% of the
+    unseen true pairs.
+  - 61% of India's S1 addresses have no leading number, against 14% for the US and for France. So this error type
+    has little room on France, and we built no fix for it.
+- **Country-invariant models do not close the gap.** A transfer model on country-invariant features only, monotone
+  constraints, and dropping the most shifted format features all lost on the unseen side in both directions
+  (section 5.5). The country-specific features still help on a country the model never saw.
+- **LOCO vs the leaderboard.** LOCO preferred no France correction (k = 1). The leaderboard A/B preferred k 0.184
+  (section 4.4). LOCO predicts feature changes on unseen countries well, but it misjudged the France decode setting.
 
 ### 5.4 Loss anatomy (final OOF)
 
@@ -313,6 +362,12 @@ extra false positives 6.3%, singleton false positives 2.8%. Blocking dominates i
 | self-supervised synthetic pairs for an unseen country (noise model from US+IN true pairs, noisy copies of unlabeled S1, other S1 as true negatives thanks to S1 deduplication; same blocking/features; synthetic feature distributions close to real) | LOCO US->IN: India unseen 0.91571 -> 0.91364 (weight 0.3) / 0.91132 (weight 1.0) | dropped |
 | twin-decoy decode rule (drop links with core name equal + house number +-1..20 + legal suffix added, or one generic word swapped at the same address) | blend already rejects test twins (US 3.6 vs 1.75 such links per 1k S1 on train); these signatures are true links in train (precision 0.986-1.000); dropping them costs OOF 0.0003 / 0.0039 | dropped |
 | seen-country DiD calibration | fails fold-vs-fold null test (k 0.31-0.33) | not applied |
+| second cross-encoder (multilingual-e5-base) as an extra round-2 feature | +0.00015 OOF on its half (gate +0.0003) | dropped |
+| v2 name generic sets + IDF per country group (`names2c`) | OOF +-0.00002; LOCO -0.0007 (US->IN) / -0.0003 (IN->US) | dropped |
+| drop the most country-shifted house-number format features (`n_num_a`, `n_num_b`, `hn_in_other`) | LOCO -0.0052 / -0.0028, seen side down too | dropped |
+| transfer model for countries absent from train: round-2 LightGBM on 58 country-invariant features, mixed p = a x full + (1-a) x transfer, a in {0.7, 0.5, 0.3, 0} | LOCO unseen US->IN 0.91571 -> 0.91502 / 0.91345 / 0.91050 / 0.90514; IN->US 0.96935 -> 0.96901 / 0.96827 / 0.96703 / 0.96492 | dropped |
+| monotone constraints (increasing) on 24 similarity features | LOCO unseen -0.0010 / +0.0005, seen -0.0004 / -0.0008 | dropped |
+| France decode rules chosen on LOCO (k grid 0.25-4, link-count k, two-knob gate + link k) | k = 1 best on India-unseen; strong down-scaling cost -0.006 there | LOCO disagreed with the leaderboard (section 4.4): leaderboard kept |
 
 ---
 
@@ -332,11 +387,18 @@ gains better than in-distribution OOF did.
 
 `code/business_entity_resolution/`:
 
-- `README.md`: exact commands. Environment: Python 3.11, `uv venv` + `uv pip install -r requirements.txt` (all
-  dependencies pinned, including transitive ones).
+- `README.md`: exact commands for both pipelines.
+  - Step A: our CPU pipeline + blend, which regenerates both output files.
+  - Step B: our cross-encoder on GPU.
+  - Step C: the partner pipeline (via `src/razan/REPRODUCE.md` and `REPRODUCE_M8.md`).
+- Environments:
+  - `requirements.txt`: step A, Python 3.11, all pins including transitive ones.
+  - `requirements_ce_gpu.txt`: step B.
+  - `requirements_qtpies.txt` + `requirements_qtpies_gpu.txt`: step C, Python 3.12. It needs its own environment,
+    because its pins conflict with step A's.
 - `src/run_all.sh`: the single entry point. It regenerates `output/candidate_pairs.tsv` and
   `output/matching_results.tsv` from the dataset, then runs the official validator. It runs on a 16 GB RAM laptop
-  in about [TO CONFIRM: clean-room wall time] h; each stage is cached under `work/`.
+  in about 5.3 h (clean room: 320 min); each stage is cached under `work/`.
 - `src/ber/`: `normalize.py`, `dictionaries.py`, `blocking/` (TF-IDF channels, PC reports), `features/` (strings,
   context, graph, numbers, names2, r2extra), `models/` (LightGBM round 1 `lgbm.py`, round 2 `stack.py`),
   `ce_export.py` / `ce_ingest.py` (cross-encoder data out / scores in), `decode.py`, `metric.py`, `loco.py`
@@ -345,9 +407,23 @@ gains better than in-distribution OOF did.
 - `src/gpu/ce_train_predict.py`: cross-encoder fine-tuning and scoring (Kaggle T4, resumable).
 - `src/ce_scores/`: the shipped cross-encoder scores (inputs).
 - `src/tests/`: metric, IO and decoder tests.
+- `src/razan/`: the partner pipeline's shipped predictions (inputs), its code snapshot `src/razan/src/` (SHA-256 of
+  the sorted `.py` files `4594535af76c` = the M8 kernel; it also reruns M5's steps), `kaggle_runner.py`, `AUDIT.md`
+  and its REPRODUCE files.
 
-**Reproducibility:** the final file was regenerated on Sunday by a clean-room run: a fresh clone, a fresh environment
-from `requirements.txt`, and the dataset only. [FINAL: md5 match / differing rows and OOF vs reference.]
+**Reproducibility:** on Sunday, a clean-room run regenerated the final file from the frozen tag: a fresh clone, a fresh
+environment from `requirements.txt`, the dataset, and the shipped inputs. Result: our model's OOF was 0.98766 (reference 0.98765), and the blend OOF 0.99032 equals the reference. The union
+candidate set was byte-identical. The rebuilt base file (md5 `9c36a54bbc48d3e17aead96eafc0fe02`) differs from the
+reference upload `blend_cal` (md5 `0a0b14806bcddf3370258467ae3fddd9`, public 0.985131) on 3,451 of 1,732,544 S1
+rows (0.2%): France 1,744, US 867, India 840, with links added and removed in balance. Per-country empty shares and
+links per S1 agree to 0.0002.
+- **Memory note:** the first clean-room attempt was stopped by our job runner's 11 GB memory cap at the train
+  blocking merge. The retry allowed 13 GB RAM + 8 GB swap. Train blocking peaked at 10.4 GB RAM + 6.75 GB swap, so
+  run the pipeline on 16 GB RAM with swap enabled. A 3% sample clean room had passed end to end on Saturday.
+- **Determinism:** blocking is byte-reproducible. The model stages reproduce to 0.2% of rows (above), even with the
+  LightGBM thread count fixed at 16. Rerunning the GPU steps (B, C) gives inputs that match up to fp16 / cuDNN and
+  multi-thread LightGBM noise (about 1e-4 of OOF F0.5), so a full rerun gives a near-identical, not byte-identical,
+  final file.
 
 **Fair play:** no external data, databases, APIs, geocoding or internet lookups are used anywhere. The only network
 use was downloading pip packages and the pretrained cross-encoder weights from Hugging Face. All learning uses the

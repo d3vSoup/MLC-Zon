@@ -1,0 +1,3 @@
+# Our cross-encoder (src/gpu/ce_train_predict.py, xlm-roberta-base, MIT), Kaggle GPU image (2x T4).
+# torch 2.10.0+cu128 (Kaggle GPU image, 2x Tesla T4; printed by the script in all logged runs, 27 Sep check)
+transformers==5.17.0  # as in the script header; the run logs do not print it (the image itself ships 5.0.0 per QTpies' probe)

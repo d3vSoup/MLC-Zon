@@ -1,0 +1,9 @@
+# Partner pipeline cross-encoders (ce.py, cce.py; Kaggle GPU image, 2x T4), on top of requirements_qtpies.txt.
+# Python 3.12.13. Base model intfloat/multilingual-e5-small (MIT, 118M), rev 614241f622f53c4eeff9890bdc4f31cfecc418b3.
+# Source: src/razan/REPRODUCE.md (cross-encoder stack, measured on the same Kaggle image).
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.10.0
+transformers==5.0.0
+tokenizers==0.22.2
+safetensors==0.7.0
+huggingface_hub==1.11.0
