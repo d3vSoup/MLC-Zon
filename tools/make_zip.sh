@@ -12,10 +12,10 @@ C=student_resource/code/business_entity_resolution
   { echo "uncommitted changes in code or doc: commit first (zip must match a commit)"; exit 1; }
 ST=student_resource/work/zipstage
 rm -rf "$ST"; mkdir -p "$ST/output"
-git archive HEAD "$C/src" "$C/README.md" "$C/requirements.txt" | tar -x -C "$ST"
+git archive HEAD "$C/src" "$C/README.md" $(git ls-files "$C/requirements*.txt") | tar -x -C "$ST"  # all env files (ours + partner)
 mv "$ST/student_resource/code" "$ST/code"; rmdir "$ST/student_resource"
 # CE scores are inputs (made on Kaggle GPUs, gitignored parquet): ship them if this build uses them
-[ -d "$C/src/ce_scores" ] && cp -r "$C/src/ce_scores" "$ST/code/business_entity_resolution/src/"
+[ -d "$C/src/ce_scores" ] && mkdir -p "$ST/code/business_entity_resolution/src/ce_scores" && cp "$C"/src/ce_scores/ce_scores_*.parquet "$ST/code/business_entity_resolution/src/ce_scores/"  # CE1 only (CE2 not used)
 # blend partner's stage-2 preds + id maps (gitignored parquet inputs); README/REPRODUCE come with git archive
 [ -e "$C/src/razan/oof_s2ce.parquet" ] && cp -r "$C/src/razan/"*.parquet "$C/src/razan/ids" "$ST/code/business_entity_resolution/src/razan/"
 ln "$MATCH" "$ST/output/matching_results.tsv"
