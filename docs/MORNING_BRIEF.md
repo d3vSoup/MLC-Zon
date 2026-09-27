@@ -1,4 +1,6 @@
 ## LIVE (newest first)
+**Night 2 (21:20): no candidate passes the gate; FINAL 2 stays final. See [NIGHT2.md](NIGHT2.md).**
+
 - 21:05 FINAL2 public 0.986758 = best AND last. 27f: Documentation FINAL = FINAL2 committed + tagged; zip build waits for disk (6.6 GB free < 8 GB floor). Night-2 Phase 1: country decomposition shows FINAL2 already = best known France (#34) + best US/IN (#35); diagnostics do not predict public deltas (conflicting signs).
 - 20:40 27e ZIP VERIFIED: QTpies_submission.zip 2,581,827,078 bytes md5 0dd30abc9c6137e53f0a013a9860afdf (tag freeze-2026-09-27e eff3ceca; output = #34 c51d3853, candidates = union 5021548f). Unzipped: tree OK, no secrets/caches, fuse inputs MD5 OK, validator PASS + subset; #34 / #35 / FINAL2 regenerated FROM THE ZIP with matching md5s. Fallback kept: QTpies_submission_w07_27c.zip (9c6798a9).
 - 20:28 27e package in progress: partner src @0aa2e02 + code/ (stage3 M10/M11, make_m11h, export), fuse inputs under src/razan/fuse (MD5.txt), README section D (exact commands -> #34 / #35 / FINAL2), Documentation FINAL = #34 (0.986731) with fuse/SOLO disclosures. M12h: evaluated, not used (0.99100 vs 0.99093).
