@@ -23,6 +23,8 @@ same-name rival-row counts; train CV 0.98898 vs M9 0.98852):
   veto2  also drop a team link with p2 < veto2[c].
   add2   also add a pair with q2 >= add2[c] on a row unowned after vetoes (a row both models would give to
          different S1s is left out).
+Optional --pred-alt <parquet> [--alt-countries US,India]: take p for those countries from this file instead of --pred
+(used on a base that already blends M10: US/India rules then read M10 p, France keeps M9 p).
 Optional fill (--fill France=0.5, needs --norm): an S1 left with no links gets its best M9 candidate with q >= fill[c]
 on a still-unowned row, unless that pair was vetoed or carries a twin signature (France's empty rate after the vetoes,
 6.2%, is above the seen countries' 5.8%; a correct fill is +1 for its S1).
@@ -125,6 +127,11 @@ def main(a):
             .with_columns(pl.int_range(pl.len()).over("row").alias("pos")) \
             .join(s1, on="s1").join(r, on="id")
     p9 = pl.read_parquet(a.pred, columns=["si", "ri", "p"]).join(s1.select("si", "country"), on="si")
+    if a.pred_alt:  # e.g. M10 p for US/India on a base that already blends M10; --pred (M9) elsewhere
+        alt = pl.read_parquet(a.pred_alt, columns=["si", "ri", "p"]).rename({"p": "p_alt"})
+        cs = a.alt_countries.split(",")
+        p9 = p9.join(alt, on=["si", "ri"], how="left")                .with_columns(pl.when(pl.col("country").is_in(cs)).then(pl.col("p_alt")).otherwise(pl.col("p")).alias("p")).drop("p_alt")
+        assert p9["p"].null_count() == 0, "--pred-alt must cover the same pairs as --pred"
     veto, add = per_country(a.veto, 0.0), per_country(a.add, 2.0)
     s1rej = None
     if a.veto_s1:
@@ -195,7 +202,8 @@ def main(a):
               "veto_solo": veto_solo, "add_solo": add_solo, "norm": a.norm or None, "veto_g": veto_g, "veto_n": veto_n,
               "norm_md5": {k: hashlib.md5(open(os.path.join(a.norm, f"n_test_s{k}.parquet"), "rb").read()).hexdigest() for k in (1, 2, 3)} if a.norm else None,
               "pred2": a.pred2 or None, "pred2_md5": hashlib.md5(open(a.pred2, "rb").read()).hexdigest() if a.pred2 else None,
-              "veto2": veto2, "add2": add2, "fill": fill if a.fill else None, "out_md5": md5}
+              "veto2": veto2, "add2": add2, "fill": fill if a.fill else None,
+              "pred_alt": a.pred_alt or None, "alt_countries": a.alt_countries if a.pred_alt else None, "out_md5": md5}
     json.dump(params, open(os.path.join(a.out, "params.json"), "w"), indent=1)
     json.dump(stats, open(os.path.join(a.out, "stats.json"), "w"), indent=1)
     pl.concat([vetoed.select("s1", "id", "si", "ri", "country", "p", pl.lit(None, pl.Float64).alias("q"), pl.lit("veto").alias("kind")),
@@ -275,6 +283,8 @@ if __name__ == "__main__":
     ap.add_argument("--veto2", default="")
     ap.add_argument("--add2", default="")
     ap.add_argument("--fill", default="")
+    ap.add_argument("--pred-alt", default="")
+    ap.add_argument("--alt-countries", default="US,India")
     ap.add_argument("--pred", default=os.path.join(ROOT, "runs/qtpies-m9/pred_test_s2ce.parquet"))
     ap.add_argument("--ids", default=os.path.join(ROOT, "runs/qtpies-m9/share/ids"))
     ap.add_argument("--p1", default=os.path.join(ROOT, "runs/qtpies-m7b/pred_test_m.parquet"))

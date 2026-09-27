@@ -21,12 +21,21 @@ decoder, live S1): M9 0.98852, M10 0.98898. The same pairs, ids and dropped S1 a
 - `REPRODUCE_M9.md`: the `cceb` cluster cross-encoder and M9.
 - `REPRODUCE_M10.md` + `README_M10.md`: stage 3 (`python stage3.py <M9 share> <M10 share>`, deterministic, ~10 min).
 
-## Code
-- `src/`: the partner's source at git commit `16a61c9` of github.com/razancodes/MLC-raZON (M10: stage 3 + fuse). It
-  holds 16 files. SHA-256 over the sorted `src/*.py` (contents concatenated), first 12 hex, is `24bed6efd449` for
-  these git (LF) files; without `stage3.py` / `fuse.py` it is `9f0cc9ee1551`.
-- The M9 Kaggle kernels ran snapshot `3313ebdb1a60`: the same code with the kernel's mixed CRLF/LF line endings
-  (REPRODUCE_M9.md). The M8 kernels ran `4594535af76c` (tag `m8`).
-- `fuse.py` is not used by this submission's blend.
-- `kaggle_runner.py`: the job runner at the same commit. `AUDIT.md`: the partner's label-free test audit (source of the
-  twin parameters, disclosed in the Documentation, section 4.5).
+## Code (git commit `0aa2e02` of github.com/razancodes/MLC-raZON)
+- `src/`: the partner's source at `0aa2e02`: M9 code, `stage3.py` (M12 version), `fuse.py`, `merge_by_country.py`.
+  The M9 Kaggle kernels ran snapshot `3313ebdb1a60` and the M8 kernels `4594535af76c` (the same code with the
+  kernels' own line endings; see REPRODUCE_M8 / M9).
+- `code/`: the exact versions that made the shipped partner files.
+  - `stage3_m10.py` (M10, md5 `7a913c23…`) and `stage3_m11.py` (M11, md5 `c740279f…`); M12 is `src/stage3.py` (`316cd967…`).
+  - `make_m11h.py`: the h-variants (US/India from the stacker, France from M10).
+  - `export_for_razan.py`: our clean-room p for the stacker.
+- `kaggle_runner.py`: the job runner. `AUDIT.md`: the partner's label-free test audit (source of the twin parameters).
+- `LB_LOG_2026-09-27.md`: every leaderboard probe of 27 Sep. The fuse thresholds were set from these probes.
+
+## Fuse inputs (`fuse/`, md5s in `fuse/MD5.txt`)
+- `m9/pred_test_s2ce.parquet` (M9 test p), `m11h/`, `m12h/` (stacker bundles: train OOF + test p).
+- `norm/n_test_s{1,2,3}.parquet`: the partner's normalised test records.
+- `solo/ce_full_v1_matching_results.tsv`: our reference-run single-pipeline file (fixed input, see the code README
+  section D).
+- `blends/`: our two clean-room blend files the fuse runs on.
+- Recipes: `REPRODUCE_FUSE.md`, `REPRODUCE_FINAL.md`, `FUSE.md`; exact commands in the code README, section D.

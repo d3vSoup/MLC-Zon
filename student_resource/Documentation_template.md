@@ -16,10 +16,12 @@ LightGBM rounds score the pairs: 42 pair features first, then graph/group featur
 name features and the score of a multilingual cross-encoder (xlm-roberta-base, MIT) fine-tuned on train pairs. A
 calibrated expected-F0.5 decoder with a per-entity "has any match" gate then turns the pair scores into match lists.
 Our pipeline alone reaches a grouped out-of-fold (OOF) macro F0.5 of 0.98765 on all 2,206,821 train S1 entities
-(public 0.980518). The final file blends our pair probabilities with a teammate's independent pipeline (QTpies M10) at
-partner weight 0.7. Its OOF on the partner's 1,853,766 density-matched train S1 is 0.99070, against 0.98899 for M10
-alone, and it scores 0.986456 public. It was rebuilt in a clean room from a fresh clone. No external data, APIs or
-lookups are used.
+(public 0.980518). We blend our pair probabilities with a teammate's independent pipeline (QTpies M10) at partner weight 0.7. On the
+partner's 1,853,766 density-matched train S1 the blend's OOF is 0.99070, against 0.98899 for M10 alone, and it
+scores 0.986456 public. The final file adds the teammate's submission-level fuse on top (section 4.6): per-country
+vetoes and additions driven by the partner's stage-2 probabilities, with thresholds set by public-leaderboard probes.
+It scores **0.986731 public**. Every file was rebuilt on our machine from shipped inputs, with matching md5s. No
+external data, APIs or lookups are used.
 
 ---
 
@@ -192,7 +194,7 @@ code (`src/razan/src/`, the exact snapshot its final Kaggle kernel ran) and its 
   **M10 = M9 + stage 3:** a LightGBM that recalibrates M9's stage-2 p with label-free counts of same-name rival rows
   (addressed rows with the same core name that no S1 claims), cross-fitted by S1 on train. Train CV (their
   decoder): M9 0.98852, M10 0.98898.
-- **Used in the final: M10 at partner weight 0.7** (our weight `blend.w` 0.3). OOF (live S1, our decoder): partner
+- **Blend used under the final: M10 at partner weight 0.7** (our weight `blend.w` 0.3). OOF (live S1, our decoder): partner
   weight 0.5 / 0.7 / 0.85 = 0.99068 / 0.99070 / 0.99055, M10 alone 0.98899, M8 blend 0.99044, M5 blend 0.99032.
   The weight follows the OOF, but the curve is flat (0.00015 wide). The public scores were 0.986456 (M10, weight 0.7)
   vs 0.985131 (M5, weight 0.5).
@@ -214,6 +216,8 @@ transformers (Apache-2.0), GPU script only. Every model is far below the 8B-para
 `requirements.txt`.
 
 ### 4.3 Hand-written dictionaries (disclosed)
+(See also 4.6 for the fuse's per-country thresholds.)
+
 
 All hand-written domain knowledge lives in one file, `src/ber/dictionaries.py`:
 
@@ -266,6 +270,30 @@ isotonic calibration, the odds of p are multiplied by a factor k per S1 country:
   re-derived by the same rule on this blend: **k 0.432**, France empty share 5.93% (seen countries 5.78% + 0.0015).
   M10 already rejects many French twins, so it needs less down-scaling than M5.
 
+### 4.6 Final step: submission-level fuse (teammate's `fuse.py`)
+
+The final file is `fuse.py` applied on top of our M10 blend file (md5 `d754f06f8800aa5516a2a67d7a1ab2e4`).
+- Per country, it **vetoes** a team link that the partner's stage-2 p scores below a threshold. For US/India the rules
+  read M12h p: a partner stacker on M10 features plus our own clean-room p, trained on US/India. For France they read
+  M9 p. Thresholds: France 0.7, US/India 0.3.
+- It **adds** partner pairs with a share q >= 0.99 on records left unowned (one owner per record).
+- **Solo rules:** it vetoes (p < 0.9 France / 0.7 US-India) or adds (q >= 0.9) where our single-pipeline file
+  (SOLO) disagrees with the blend.
+- **Twin-signature vetoes:** France generic-word swap (p < 0.99); US number shift (p < 0.7).
+- It **fills** France S1 left empty with the best non-twin partner candidate (q >= 0.5).
+- Effect vs the blend: 11,347 S1 rows change. France: 6,229 vetoes, 1,826 adds. US: 1,273 / 610. India: 1,291 / 476.
+- **The thresholds and rule choices were set with about 10 public-leaderboard probes on 27 Sep**
+  (`src/razan/LB_LOG_2026-09-27.md`: each probe = one change). The parameters are keyed by country name.
+- Public: blend 0.986456 -> fuse #33 (US/India rules on M10 p) 0.986655 -> **fuse #34 (US/India rules on M12h p) 0.986731**
+  (final). The same fuse on our M11h blend (#35) scored 0.986666.
+- **Inputs, all shipped, with md5s:** our two clean-room blend files, the partner's M9 / M11h / M12h test p and
+  normalised test records, and our SOLO file.
+- **SOLO caveat:** the SOLO is our reference-run `ce_full_v1` (md5 `3a0d4c771a1203acf207811ee2c8a2fe`). The clean-room
+  rebuild of that file has md5 `677f56f9bdce08a61a77f6a478492b99`. With it, 174-176 of 1,732,544 fused rows (0.01%)
+  change (France 101, US 37-38, India 36-37), and empty shares and links per S1 stay equal to 4 decimals. So it ships
+  as a fixed input, and the final rebuilds byte for byte from the shipped inputs (verified on our machine; commands in
+  the code README, section D).
+
 ### 4.5 Use of test-set statistics and country keys (disclosure)
 
 No test labels are used anywhere. Some label-free statistics of the unlabeled test set shape the final model:
@@ -285,8 +313,10 @@ No test labels are used anywhere. Some label-free statistics of the unlabeled te
 - **Other country names in the partner code:**
   - an inactive "France" branch in `calibrate.py:87`, used only when no OOF file is given, so not in any shipped run;
   - a test-mix weighting (US 0.383, India 0.468, France 0.150), used only to report cross-validation scores.
-- Apart from the twin rates, country enters only as an opaque grouping key. No external data, APIs or lookups are
-  used.
+- **Final fuse (4.6):** its per-country thresholds, and its hybrid rule (US/India read M12h p, France reads M9 p),
+  were chosen from public-leaderboard probes (about 10 on 27 Sep).
+- Apart from the twin rates and the fuse's per-country thresholds, country enters only as an opaque grouping key. No
+  external data, APIs or lookups are used.
 
 ---
 
@@ -316,13 +346,16 @@ No test labels are used anywhere. Some label-free statistics of the unlabeled te
 | + cross-encoder, half 1 only (scored on H2) | 0.9825 | 0.98744 (H2) | 0.98958 | 0.98425 | 0.99367 | 0.981 |
 | + cross-encoder, both halves | 0.9825 | **0.98765** | 0.98971 | 0.98456 | 0.99374 | 0.980518 |
 | blend with QTpies M5, weight 0.5, France k 0.184 (live S1 OOF) | 0.9825* | 0.99032 | 0.99049 | 0.99007 | 0.99372 | 0.985131 |
-| **final: blend with QTpies M10, partner weight 0.7, France k 0.432 (live S1 OOF)** | 0.9825* | **0.99070** | 0.99091 | 0.99039 | 0.99444 | **0.986456** |
+| blend with QTpies M10, partner weight 0.7, France k 0.432 (live S1 OOF) | 0.9825* | 0.99070 | 0.99091 | 0.99039 | 0.99444 | 0.986456 |
+| + fuse #33 (US/India rules on M10 p) | - | - | - | - | - | 0.986655 |
+| **final: + fuse #34 (US/India rules on M12h p)** | - | - (test-only step) | - | - | - | **0.986731** |
 
 \* Our candidate set. The blend adds the partner's candidates (union, +634,542 test pairs).
 
 Fold standard deviation of the final OOF: 0.00007.
 
-- **F_0.5 Score (macro):** final 0.99070 OOF (live S1; our pipeline alone 0.98765 on all train S1); **public 0.986456**.
+- **F_0.5 Score (macro):** **public 0.986731** (final, #34). OOF: blend 0.99070 (live S1); our pipeline alone 0.98765
+  (all train S1). The fuse is a test-only step, so it has no OOF.
 
 ### 5.3 Unseen-country findings (LOCO)
 
@@ -380,6 +413,10 @@ extra false positives 6.3%, singleton false positives 2.8%. Blocking dominates i
 | second cross-encoder (multilingual-e5-base) as an extra round-2 feature | +0.00015 OOF on its half (gate +0.0003) | dropped |
 | v2 name generic sets + IDF per country group (`names2c`) | OOF +-0.00002; LOCO -0.0007 (US->IN) / -0.0003 (IN->US) | dropped |
 | drop the most country-shifted house-number format features (`n_num_a`, `n_num_b`, `hn_in_other`) | LOCO -0.0052 / -0.0028, seen side down too | dropped |
+| partner M12h as blend partner (stacker on M10 features + our p) | blend OOF 0.99100 vs M11h 0.99093 (+0.00007, below our +0.0001 gate) | not used as a blend; M12h p used inside the fuse (4.6) |
+| partner M11h blend (`blend.w` 0.0) | OOF 0.99093 vs M10 blend 0.99070; fused (#35) 0.986666 public vs #34 0.986731 | not the final |
+| partner M8 as blend partner | OOF 0.99044 (M5 0.99032) | superseded by M10 (M9 = M8 + a second cluster CE, used inside the fuse) |
+| LLM judge (partner): Qwen2.5-7B-Instruct (Apache-2.0, 7.6B), local inference, "same entity?" Yes/No | validation AUC 0.511 vs 0.779 for the partner's p; no gain in any p band | not used (no API calls anywhere) |
 | transfer model for countries absent from train: round-2 LightGBM on 58 country-invariant features, mixed p = a x full + (1-a) x transfer, a in {0.7, 0.5, 0.3, 0} | LOCO unseen US->IN 0.91571 -> 0.91502 / 0.91345 / 0.91050 / 0.90514; IN->US 0.96935 -> 0.96901 / 0.96827 / 0.96703 / 0.96492 | dropped |
 | monotone constraints (increasing) on 24 similarity features | LOCO unseen -0.0010 / +0.0005, seen -0.0004 / -0.0008 | dropped |
 | France decode rules chosen on LOCO (k grid 0.25-4, link-count k, two-knob gate + link k) | k = 1 best on India-unseen; strong down-scaling cost -0.006 there | LOCO disagreed with the leaderboard (section 4.4): leaderboard kept |
@@ -426,8 +463,9 @@ gains better than in-distribution OOF did.
   the sorted `.py` files `4594535af76c` = the M8 kernel; it also reruns M5's steps), `kaggle_runner.py`, `AUDIT.md`
   and its REPRODUCE files.
 
-**Reproducibility:** the final file (md5 `d754f06f8800aa5516a2a67d7a1ab2e4`) was produced on this machine inside the
-clean room. We re-ran the `blend` stage on the clean-room predictions with the M10 inputs and the final config
+**Reproducibility:** the final file (fuse #34, md5 `c51d385383f2fca625aa8ff24eb6d573`) was rebuilt on our machine from
+the shipped inputs with the commands in the code README, section D. Its base blend (md5
+`d754f06f8800aa5516a2a67d7a1ab2e4`) was produced on this machine inside the clean room. We re-ran the `blend` stage on the clean-room predictions with the M10 inputs and the final config
 (`blend.w` 0.3, `blend.unseen_k: auto`), which is tag `freeze-2026-09-27c`; the pipeline code is unchanged since the
 freeze. The clean-room run itself came from the frozen tag: a fresh clone, a fresh
 environment from `requirements.txt`, the dataset, and the shipped inputs. Result: our model's OOF was 0.98766 (reference 0.98765), and the blend OOF 0.99032 equals the reference. The union
@@ -449,13 +487,14 @@ provided training data only.
 
 ### B. Additional Results
 
-**Final file** (`output/matching_results.tsv`, md5 `d754f06f8800aa5516a2a67d7a1ab2e4`):
+**Final file** (`output/matching_results.tsv` = fuse #34, md5 `c51d385383f2fca625aa8ff24eb6d573`), vs its base blend
+(`d754f06f`):
 
-| country | S1 | France k | empty share | links per S1 |
+| country | S1 | empty share (blend -> final) | links per S1 (blend -> final) | rows changed |
 |---|---|---|---|---|
-| US | 663,106 | 1 | 5.76% | 3.392 |
-| India | 809,986 | 1 | 5.80% | 3.373 |
-| France | 259,452 | 0.432 | 5.93% | 3.197 |
+| US | 663,106 | 5.76% -> 5.78% | 3.392 -> 3.391 | 1,821 |
+| India | 809,986 | 5.80% -> 5.81% | 3.373 -> 3.372 | 1,739 |
+| France | 259,452 | 5.93% -> 5.91% | 3.197 -> 3.180 | 7,787 |
 
 **Round-2 feature importance** (clean-room `lgbm2_ce`, mean gain / 1e6 over 5 folds, top 20): ce_p 17.48, p1 14.90,
 p_share_rec 0.46, p_rank_rec 0.43, n_s1_c50_rec 0.16, fw_margin_rec 0.11, sib_w_other_rec 0.11, hn_absdiff_log 0.10,

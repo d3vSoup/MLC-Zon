@@ -18,6 +18,8 @@ mv "$ST/student_resource/code" "$ST/code"; rmdir "$ST/student_resource"
 [ -d "$C/src/ce_scores" ] && mkdir -p "$ST/code/business_entity_resolution/src/ce_scores" && cp "$C"/src/ce_scores/ce_scores_*.parquet "$ST/code/business_entity_resolution/src/ce_scores/"  # CE1 only (CE2 not used)
 # blend partner's stage-2 preds + id maps (gitignored parquet inputs); README/REPRODUCE come with git archive
 [ -e "$C/src/razan/oof_s2ce.parquet" ] && cp -r "$C/src/razan/"*.parquet "$C/src/razan/ids" "$ST/code/business_entity_resolution/src/razan/"
+# fuse inputs of the final (M9 / M11h / M12h p, QTpies norm/, fixed SOLO and blend files; gitignored data)
+[ -d "$C/src/razan/fuse" ] && cp -r "$C/src/razan/fuse" "$ST/code/business_entity_resolution/src/razan/"
 ln "$MATCH" "$ST/output/matching_results.tsv"
 # candidates must be the set the matches were decoded from: the one next to the matching file if present (blend = union)
 CAND=$(dirname "$MATCH")/candidate_pairs.tsv
