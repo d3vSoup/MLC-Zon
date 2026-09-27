@@ -50,14 +50,16 @@ with `--half 1` and `--half 2`, then `ber.ce_ingest`.
 
 ## C. Partner pipeline predictions (only if `blend.enabled: true`)
 
-`src/razan/` ships the stage-2 pair probabilities of a teammate's independent pipeline (QTpies M5, or M8 if chosen as the final: train
+`src/razan/` ships the stage-2 pair probabilities of a teammate's independent pipeline (QTpies M10: train
 out-of-fold `oof_s2ce.parquet`, test `pred_test_s2ce.parquet`), its id maps (`ids/`) and its dropped-S1 list
-(`src/razan/README.md`: files and SHA-256). Its code is in `src/razan/src/` (the exact snapshot its final Kaggle
-kernel ran; SHA-256 over the sorted `.py` files `4594535af76c` = the M8 kernel, which also reruns M5's steps) with the job runner `src/razan/kaggle_runner.py`. To regenerate:
+(`src/razan/README.md`: files and SHA-256). Its code is in `src/razan/src/` (the partner's
+source at git commit `16a61c9` of their repo: M9 code + `stage3.py`; kernel snapshot hashes in `src/razan/README.md`),
+with the job runner `src/razan/kaggle_runner.py`. To regenerate:
 1. Put `src/razan/src/` at `code/business_entity_resolution/src/` and `kaggle_runner.py` at
    `code/business_entity_resolution/` of a working copy (the layout both files expect), with the challenge data at
    `student_resource/dataset/`.
-2. Follow `src/razan/REPRODUCE.md` (steps 1-12: normalise, block, features, stage 1, pairwise cross-encoders, M5); for M8 also `src/razan/REPRODUCE_M8.md` (steps 13-19: twin world, cluster cross-encoder, M8).
+2. Follow `src/razan/REPRODUCE.md` (steps 1-12: normalise, block, features, stage 1, pairwise cross-encoders, M5), then `REPRODUCE_M8.md` (steps 13-19: twin world, cluster cross-encoder, M8),
+   `REPRODUCE_M9.md` (`cceb` cluster cross-encoder, M9) and `REPRODUCE_M10.md` (stage 3: `python stage3.py <M9 share> <M10 share>`).
    Each step is `python kaggle_runner.py chain <batch>`; the tables there list hardware, settings, inputs and outputs.
    Datasets used are uploads of the challenge data and of intermediate outputs; no external data.
 3. Copy `oof_s2ce.parquet`, `pred_test_s2ce.parquet`, `dropped_train_s1.parquet` and `ids/` into `src/razan/`.

@@ -24,6 +24,7 @@ BASE = os.environ.get("BER_CCE_BASE", "intfloat/multilingual-e5-small")
 M_ROWS, S1_TOK, ROW_TOK, BS, LR = 12, 48, 34, 32, 5e-5
 N_UNITS = int(os.environ.get("BER_CCE_UNITS", 400_000))   # training S1 units for this fold
 SMOKE = int(os.environ.get("BER_CCE_SMOKE", 0))            # >0: tiny run with that many units
+TAG = os.environ.get("BER_CCE_TAG", "cce")                   # output prefix = stage-2 feature name (cceb: e5-base run)
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -155,10 +156,10 @@ def run(fold):
                     out_ri += ri_l[i]
                     out_s.append(lg[j, :n])
         pl.DataFrame({"ri": np.asarray(out_ri, dtype=np.int32), "si": np.asarray(out_si, dtype=np.int32),
-                      "ce": np.concatenate(out_s).astype(np.float32)}).write_parquet(w(f"cce_{split}_part{fold}.parquet"))
+                      "ce": np.concatenate(out_s).astype(np.float32)}).write_parquet(w(f"{TAG}_{split}_part{fold}.parquet"))
         print(f"scored {split}: {len(out_ri)} pairs {time.time() - t0:.0f}s", flush=True)
     if SMOKE:
-        s = pl.read_parquet(w(f"cce_train_part{fold}.parquet")).join(gt, on=["si", "ri"], how="left").with_columns(pl.col("y").fill_null(0))
+        s = pl.read_parquet(w(f"{TAG}_train_part{fold}.parquet")).join(gt, on=["si", "ri"], how="left").with_columns(pl.col("y").fill_null(0))
         from sklearn.metrics import roc_auc_score
         print("smoke train OOF AUC", round(roc_auc_score(s["y"].to_numpy(), s["ce"].to_numpy()), 4) if s["y"].n_unique() > 1 else "n/a", flush=True)
 

@@ -163,7 +163,7 @@ def stage2_table(split, P, p1_path=None):
         D = D.join(T, on=KEYS, how="left")
     if N is not None:
         D = D.join(N, on=KEYS, how="left")
-    for tag, col in (("ce", "ce"), ("ce2", "ce2"), ("cce", "cce")):  # CE logits (+ *_twin files); cce = cluster CE parts
+    for tag, col in (("ce", "ce"), ("ce2", "ce2"), ("cce", "cce"), ("cceb", "cceb")):  # CE logits (+ *_twin files); cce = cluster CE parts
         fs = sorted(glob.glob(w(f"{tag}_{split}*.parquet")))
         if fs:
             D = D.join(pl.concat([pl.read_parquet(f).select(KEYS + [pl.col("ce").alias(col)]) for f in fs]), on=KEYS, how="left")

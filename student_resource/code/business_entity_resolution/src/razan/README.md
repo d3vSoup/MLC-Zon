@@ -1,53 +1,32 @@
-# QTpies M5 share bundle
+# Partner pipeline inputs (QTpies M10) for the blend
 
-Built from branch `er-pipeline` @ `544d5df` (polars 1.44.2). Model **M5** (`qtpies-m5`): 2-stage LightGBM + two
-cross-encoders; train OOF F0.5 0.98820 in the density-matched (DROP16) world. Calibrated test decode = `sub12_m5_shift`.
+The blend (`ber/blend.py`, stage `blend`) reads only these files (md5):
 
-## Files
-| File | Columns | Meaning |
+| file | rows | md5 |
 |---|---|---|
-| `oof_s2ce.parquet` | ri, si, y, p | Train stage-2 **out-of-fold** probabilities (2-fold by `hash(si, 42) % 2`). DROP16 world: pairs of the dropped S1s are absent (their rows act as distractors); `y` = 1 for a true link |
-| `pred_test_s2ce.parquet` | ri, si, p | Test stage-2 probabilities, **raw** (before `calibrate.py`), mean of the two fold models. This pair set is our `candidate_pairs.tsv` (stage-1 p ≥ 0.002) |
-| `ids/n_{split}_s1.parquet` | si, id, country | `si` = 0-based row of our normalised S1 file |
-| `ids/n_{split}_s2.parquet`, `ids/n_{split}_s3.parquet` | ri, id, country | `ri` = 0-based row of concat(S2, S3): S3 rows continue after the last S2 row |
-| `dropped_train_s1.parquet` | si, id, country | Train S1s treated as absent (BER_DROP=16) |
-| `src/calibrate.py`, `src/decide.py` | | Test-time calibration and expected-F0.5 decoder; `common.py` and `run.py` are included because `calibrate.py` imports them |
+| `oof_s2ce.parquet` (train out-of-fold stage-2 p; live S1 only; no synthetic twin rows) | 8,812,682 | `5e7eaaa23bcd2a44565d53222d2c4dc2` |
+| `pred_test_s2ce.parquet` (test stage-2 p, raw, before any calibration) | 9,531,458 | `16d67ec72c03e196071c6b1319ef693c` |
+| `ids/n_test_s1` / `s2` / `s3` | | `54d8729130a3a994f83a0095e9a72915` / `85f009cbe17a1f82a295eeeff6d2e602` / `82cfd1f0bcac38452c8866be7f5fc012` |
+| `ids/n_train_s1` / `s2` / `s3` | | `79415a426916e570211e43d2637489f7` / `2681072cf8210e527d6cf2609172cf26` / `6b0f7a688a00dd374910cee963712bf0` |
+| `dropped_train_s1.parquet` (their density-matching drop, 16% of train S1) | | `cd705017c5c541892db8f1b56e30ce99` |
 
-## Conventions
-- si/ri are row numbers of **our** normalised files, which are not guaranteed to follow raw-TSV order: always map through `ids/`.
-- Dropped S1s: `(pl.col("si").cast(pl.Int32).hash(49) % 100) < 16`, polars 1.44.2 (polars hashes are version-dependent).
-  Same set with UInt32 si: True. Dropped 353,055; live 1,853,766.
-- Join example: `oof.join(pl.read_parquet("ids/n_train_s1.parquet"), on="si")` gives the S1 entity id;
-  `pl.concat([pl.read_parquet("ids/n_train_s2.parquet"), pl.read_parquet("ids/n_train_s3.parquet")])` joined on `ri` gives the S2/S3 id.
+**M10** = M9 + stage 3. M9 = M8 + a second cluster cross-encoder feature (`cceb`, multilingual-e5-base, MIT). M8 = M5 +
+twin-world training + a cluster cross-encoder (`cce`, multilingual-e5-small, MIT). Stage 3 (`src/stage3.py`, LightGBM)
+recalibrates M9's stage-2 p with label-free same-name rival-row counts, cross-fitted by S1 on train. Train CV (their
+decoder, live S1): M9 0.98852, M10 0.98898. The same pairs, ids and dropped S1 as M5 / M8, so the blend union is unchanged.
 
-## Reproduce `sub12_m5_shift`
-```
-cd src
-BER_WORK=../ids BER_DROP=16 python calibrate.py ../pred_test_s2ce.parquet <out_dir> ../oof_s2ce.parquet
-```
-Needs polars 1.44.2, numpy, numba 0.63.1. Result checked byte-identical to `sub12_m5_shift/matching_results.tsv`: **True**.
-(US k=0.060 via difference-in-differences vs India; France k=0.10 via empty-rate matching; India unchanged.)
+## How these files are made
+- `REPRODUCE.md`: steps 1-12 (normalise, block, features, stage 1, pairwise cross-encoders, M5).
+- `REPRODUCE_M8.md`: steps 13-19 (twin world, cluster cross-encoder, M8).
+- `REPRODUCE_M9.md`: the `cceb` cluster cross-encoder and M9.
+- `REPRODUCE_M10.md` + `README_M10.md`: stage 3 (`python stage3.py <M9 share> <M10 share>`, deterministic, ~10 min).
 
-## Row counts and SHA-256 (first 16 hex)
-| File | Rows | SHA-256 |
-|---|---|---|
-| `oof_s2ce.parquet` | 8,812,682 | `693af2a673dcd4f9…` |
-| `pred_test_s2ce.parquet` | 9,531,458 | `88c7e7fadc507710…` |
-| `dropped_train_s1.parquet` | 353,055 | `4ec879abb94a0c2c…` |
-| `ids/n_train_s1.parquet` | 2,206,821 | `cbf8ab8d6042ad4c…` |
-| `ids/n_train_s2.parquet` | 5,034,616 | `82b1317856dfb342…` |
-| `ids/n_train_s3.parquet` | 5,285,603 | `12b3fa5cf6cb302a…` |
-| `ids/n_test_s1.parquet` | 1,732,544 | `5fceb484aaad0e9d…` |
-| `ids/n_test_s2.parquet` | 4,887,273 | `5402275dbb9870a7…` |
-| `ids/n_test_s3.parquet` | 5,082,316 | `88cc8b948b7eab3e…` |
-
-## Code snapshot (added 27 Sep)
-- `src/`: the exact code of the partner's final Kaggle kernels (SHA-256 over the sorted `src/*.py`, contents
-  concatenated, first 12 hex `4594535af76c` = the `qtpies-m8` kernel snapshot = git tag `m8`, commit `051ad18`, of
-  github.com/razancodes/MLC-raZON). Earlier kernels (M5's steps 1-12) ran older snapshots. They differ from this one
-  only additively, behind env switches whose defaults are off, so this code reruns them (`REPRODUCE_M8.md`, code
-  version section).
-- `kaggle_runner.py`: the job runner at tag `m8`. `AUDIT.md`: the partner's label-free test audit.
-  `SRC_README.txt`: how `src/` was extracted.
-- `REPRODUCE.md`: steps 1-12 (M5). `REPRODUCE_M8.md`: steps 13-19 (twin world, cluster cross-encoder, M8).
-- The data files in this folder are the ones the shipped blend used (see the table above and the Documentation).
+## Code
+- `src/`: the partner's source at git commit `16a61c9` of github.com/razancodes/MLC-raZON (M10: stage 3 + fuse). It
+  holds 16 files. SHA-256 over the sorted `src/*.py` (contents concatenated), first 12 hex, is `24bed6efd449` for
+  these git (LF) files; without `stage3.py` / `fuse.py` it is `9f0cc9ee1551`.
+- The M9 Kaggle kernels ran snapshot `3313ebdb1a60`: the same code with the kernel's mixed CRLF/LF line endings
+  (REPRODUCE_M9.md). The M8 kernels ran `4594535af76c` (tag `m8`).
+- `fuse.py` is not used by this submission's blend.
+- `kaggle_runner.py`: the job runner at the same commit. `AUDIT.md`: the partner's label-free test audit (source of the
+  twin parameters, disclosed in the Documentation, section 4.5).

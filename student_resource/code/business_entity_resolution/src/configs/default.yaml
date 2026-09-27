@@ -65,10 +65,10 @@ synth:                  # self-supervised synthetic pairs for unseen countries (
   ghost: 0.26           # share of that universe dropped from S1: their noisy copies match nothing (real: 26% of S2/S3)
   weight: 1.0           # LightGBM sample weight of synthetic rows (LOCO picks 0.3 or 1.0)
 
-blend:                  # pair-level blend with the QTpies M5 stage-2 preds (src/razan/, shipped inputs; ber.blend)
-  enabled: true         # FINAL: blend with QTpies M5 (round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce)
+blend:                  # pair-level blend with the QTpies M10 stage-2 preds (src/razan/, shipped inputs; ber.blend)
+  enabled: true         # FINAL: blend with QTpies M10 (round2.name lgbm2_ce, use_ce true, decode.model lgbm2_ce)
   dir: code/business_entity_resolution/src/razan
-  w: 0.5                # fixed, not tuned (OOF flat 0.3-0.7; our side optimistic in their density-matched world)
+  w: 0.3                # FINAL (27c): OUR weight; partner (QTpies M10) weight 0.7. OOF (live S1) pw 0.5 / 0.7 / 0.85 = 0.99068 / 0.99070 / 0.99055
   mode: asis            # a pair only one side scored keeps that side's p
-  unseen_k: 0.18385635887853335  # FINAL: exact blend_cal France k (public 0.985131 > k 1 0.98488); auto = empty-rate matching
+  unseen_k: auto        # FINAL (27c): empty-rate matching on the M10 blend (France k 0.432). The M5 blend used the exact 0.18385635887853335 (A/B: k 1 0.98488 < 0.985131)
   extra_k: []           # no extra France files (A/B done); blend_raw (k 1) + blend_cal (auto) are still written

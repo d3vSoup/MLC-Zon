@@ -92,6 +92,10 @@ CCE_UP = ["qtpies-m7b", "qtpies-t-gen"]
 BATCHES["cce_smoke"] = {"qtpies-cce-smoke": ([["cce.py", "run", "0"]], CCE_UP)}
 BATCHES["cce"] = {f"qtpies-cce-{k}": ([["cce.py", "run", str(k)]], CCE_UP) for k in (0, 1)}
 BATCHES["m8"] = {"qtpies-m8": ([["run.py", "gather1"], ["run.py", "train2ce"], ["run.py", "predictce"]], M6_UP + list(BATCHES["cce"]))}
+# M9: the same cluster CE on a 3x larger backbone (multilingual-e5-base, MIT), as an extra stage-2 feature on top of M8
+BATCHES["cceb"] = {f"qtpies-cceb-{k}": ([["cce.py", "run", str(k)]], CCE_UP) for k in (0, 1)}
+BATCHES["m9"] = {"qtpies-m9": ([["run.py", "gather1"], ["run.py", "train2ce"], ["run.py", "predictce"]],
+                               M6_UP + list(BATCHES["cce"]) + list(BATCHES["cceb"]))}
 M2_ENV = {"BER_DROP": "16"}
 BATCH_ENV = {"ftd_train": M2_ENV, "m2_fit1": M2_ENV, "m2_pred": M2_ENV, "m2_s2": dict(M2_ENV, BER_POOL="12000000"),
              "m3": dict(M2_ENV, BER_POOL="12000000", BER_GENERIC="1"),
@@ -108,17 +112,20 @@ BATCH_ENV = {"ftd_train": M2_ENV, "m2_fit1": M2_ENV, "m2_pred": M2_ENV, "m2_s2":
              "m7a": dict(M2_ENV, BER_POOL="12000000", BER_GENERIC="1", BER_TWINF="1", BER_NUMF="1", BER_EXCL_RI=os.environ.get("BER_EXCL_RI", "")),
              "cce_smoke": dict(M2_ENV, BER_CCE_SMOKE="2000"), "cce": M2_ENV,
              "m8": dict(M2_ENV, BER_POOL="12000000", BER_GENERIC="1", BER_TWINF="1", BER_NUMF="1"),
+             "cceb": dict(M2_ENV, BER_CCE_BASE="intfloat/multilingual-e5-base", BER_CCE_TAG="cceb", BER_CCE_UNITS="200000"),
+             "m9": dict(M2_ENV, BER_POOL="12000000", BER_GENERIC="1", BER_TWINF="1", BER_NUMF="1"),
              "m3t": dict(M2_ENV, BER_POOL="12000000", BER_GENERIC="1",
                          BER_LGB2='{"learning_rate": 0.04, "num_leaves": 511, "min_data_in_leaf": 100, "feature_fraction": 0.7, "patience": 200}')}
 GPU_BATCHES = {"block_gpu", "ce_train", "ce_score", "model2", "m2_s2", "ce4_train", "ce4_score", "ce2_train", "ce2_score",
-               "t_ce4", "cce"}  # single CPU jobs use the separate GPU pool (t_ce2 moved to CPU: T4/P100 queue saturated)
+               "t_ce4", "cce", "cceb"}  # single CPU jobs use the separate GPU pool (t_ce2 moved to CPU: T4/P100 queue saturated)
 EXTRA_DATASETS = {"feats_test": ["razanml/qtpies-er-cand-test"], "m2_pred": ["razanml/qtpies-er-cand-test"], "m3": ["razanml/qtpies-er-cand-test"], "m4": ["razanml/qtpies-er-cand-test"], "m3t": ["razanml/qtpies-er-cand-test"], "m5": ["razanml/qtpies-er-cand-test"],
                   "ce2_train": ["razanml/qtpies-er-data"], "ce2_score": ["razanml/qtpies-er-data"],
                   "m2_s2": ["razanml/qtpies-er-cand-test"],
                   "t_gen": ["razanml/qtpies-er-data"], "t_ce2": ["razanml/qtpies-er-data"],
                   "m6a": ["razanml/qtpies-er-cand-test"], "m6b": ["razanml/qtpies-er-cand-test"],
                   "m7a": ["razanml/qtpies-er-cand-test"], "m7b": ["razanml/qtpies-er-cand-test"],
-                  "cce_smoke": ["razanml/qtpies-er-data"], "cce": ["razanml/qtpies-er-data"], "m8": ["razanml/qtpies-er-cand-test"]}
+                  "cce_smoke": ["razanml/qtpies-er-data"], "cce": ["razanml/qtpies-er-data"], "m8": ["razanml/qtpies-er-cand-test"],
+                  "cceb": ["razanml/qtpies-er-data"], "m9": ["razanml/qtpies-er-cand-test"]}
 
 TEMPLATE = r'''
 import base64, glob, io, os, shutil, subprocess, sys, tarfile, time

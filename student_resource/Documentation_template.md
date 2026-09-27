@@ -4,8 +4,7 @@
 **Team Members:** Muhammed Razan (leader), Muaz Ismail Mohammed, Ankit Ranjan, Souparno Chakraborty  
 **Submission Date:** 27 September 2026
 
-> Numbers come from `EXPERIMENTS.md` (the team's experiment log). Items marked [FINAL] are filled when the final
-> upload is chosen.
+> Numbers come from `EXPERIMENTS.md`, the team's experiment log.
 
 ---
 
@@ -16,8 +15,11 @@ within each country, keep 98.25% of the true train pairs while scoring only 0.00
 LightGBM rounds score the pairs: 42 pair features first, then graph/group features, soft house-number features, v2
 name features and the score of a multilingual cross-encoder (xlm-roberta-base, MIT) fine-tuned on train pairs. A
 calibrated expected-F0.5 decoder with a per-entity "has any match" gate then turns the pair scores into match lists.
-Grouped out-of-fold (OOF) macro F0.5 on all 2,206,821 train S1 entities is 0.98765 [FINAL], and the public
-leaderboard score is 0.981 [FINAL]. No external data, APIs or lookups are used.
+Our pipeline alone reaches a grouped out-of-fold (OOF) macro F0.5 of 0.98765 on all 2,206,821 train S1 entities
+(public 0.980518). The final file blends our pair probabilities with a teammate's independent pipeline (QTpies M10) at
+partner weight 0.7. Its OOF on the partner's 1,853,766 density-matched train S1 is 0.99070, against 0.98899 for M10
+alone, and it scores 0.986456 public. It was rebuilt in a clean room from a fresh clone. No external data, APIs or
+lookups are used.
 
 ---
 
@@ -186,7 +188,14 @@ code (`src/razan/src/`, the exact snapshot its final Kaggle kernel ran) and its 
 - **M8 = M5 + twin-world training + a cluster cross-encoder.** Stage 2 is retrained with 116,106 synthetic "twin"
   negative pairs generated from train rows (section 4.5), and a set-aware cross-encoder (the same e5-small backbone)
   reads one S1 with all its stage-2 candidate rows in one sequence. Clean OOF 0.98849; public 0.984591 alone.
-- **Used in the final:** [FINAL: M8 at w = ... / M5 at w = 0.5].
+- **M9 = M8 + a second cluster cross-encoder feature** (`cceb`, `intfloat/multilingual-e5-base`, MIT, 278M).
+  **M10 = M9 + stage 3:** a LightGBM that recalibrates M9's stage-2 p with label-free counts of same-name rival rows
+  (addressed rows with the same core name that no S1 claims), cross-fitted by S1 on train. Train CV (their
+  decoder): M9 0.98852, M10 0.98898.
+- **Used in the final: M10 at partner weight 0.7** (our weight `blend.w` 0.3). OOF (live S1, our decoder): partner
+  weight 0.5 / 0.7 / 0.85 = 0.99068 / 0.99070 / 0.99055, M10 alone 0.98899, M8 blend 0.99044, M5 blend 0.99032.
+  The weight follows the OOF, but the curve is flat (0.00015 wide). The public scores were 0.986456 (M10, weight 0.7)
+  vs 0.985131 (M5, weight 0.5).
 - Candidate set = union of both pipelines' final candidates (ours + 634,542 test pairs only its blocking found).
 - p = 0.5 x ours + 0.5 x theirs; a pair scored by one side only keeps that side's p (this beat "missing = 0" at every
   weight on OOF: 0.99032 vs 0.98950 at w = 0.5).
@@ -195,8 +204,9 @@ code (`src/razan/src/`, the exact snapshot its final Kaggle kernel ran) and its 
 - Evaluated on their 1,853,766 "live" train S1 (their density-matched world: 16% of train S1 hash-dropped so their
   records act as distractors, as on test). Their M5 OOF reproduced exactly (0.98820) before blending.
 
-**All models and libraries (licenses):** xlm-roberta-base (MIT, 278M); multilingual-e5-small (MIT, 118M: the
-partner's pairwise and cluster cross-encoders); multilingual-e5-base (MIT, 278M; tried, not in the final); polars
+**All models and libraries (licenses):** xlm-roberta-base (MIT, 278M: our cross-encoder); multilingual-e5-small
+(MIT, 118M: the partner's pairwise and cluster cross-encoders); multilingual-e5-base (MIT, 278M: the partner's
+second cluster cross-encoder in M9/M10; also tried in our pipeline, not used there); polars
 (MIT, partner pipeline); LightGBM
 (MIT); indic-transliteration (MIT); sparse_dot_topn (Apache-2.0); rapidfuzz (MIT); scikit-learn (BSD-3-Clause);
 pandas / numpy (BSD-3-Clause); pyarrow (Apache-2.0); regex (Apache-2.0); PyTorch (BSD-3-Clause) and Hugging Face
@@ -252,8 +262,9 @@ isotonic calibration, the odds of p are multiplied by a factor k per S1 country:
   that the share of S1 with an empty prediction equals the seen countries' test empty share + 0.0015 (France:
   k 0.184, empty 5.25% -> 5.92%). **Leaderboard A/B** on the M5 blend: France k = 1 scored 0.98488 public vs
   k 0.18385635887853335 0.985131, so down-scaling France was right (about +0.0017 France F). LOCO had predicted the
-  opposite (section 5.3), so for France we trust uploads over LOCO. [FINAL: k on the final blend: the exact value on
-  M5, or re-derived by the same rule on M8.]
+  opposite (section 5.3), so for France we trust uploads over LOCO. **Final blend (M10, partner weight 0.7):** k is
+  re-derived by the same rule on this blend: **k 0.432**, France empty share 5.93% (seen countries 5.78% + 0.0015).
+  M10 already rejects many French twins, so it needs less down-scaling than M5.
 
 ### 4.5 Use of test-set statistics and country keys (disclosure)
 
@@ -263,7 +274,7 @@ No test labels are used anywhere. Some label-free statistics of the unlabeled te
   features are computed per split, so on test S1 names for test pairs.
 - **Partner pipeline (QTpies), all models:** training treats 16% of train S1 as absent, so train matches the test
   distractor share (38-40% vs 26% in train). Its generic-word features use per-split vocabularies.
-- **Partner M8 only:**
+- **Partner M8 and later (M9, M10; the final uses M10):**
   - It adds synthetic "twin" negatives generated only from train rows: copies of real records with the house number
     shifted and a legal suffix added, and copies with one generic name word swapped.
   - The twin parameters were measured label-free on US test predictions: the shift-size histogram (`DBIN`), 89%
@@ -303,11 +314,15 @@ No test labels are used anywhere. Some label-free statistics of the unlabeled te
 | round 2 (group features), 3000 rounds | 0.9825 | 0.9773 | 0.9797 | 0.9724 | 0.9679 | 0.965 |
 | + soft house numbers + v2 names | 0.9825 | 0.98233 | 0.98532 | 0.97786 | 0.97962 | 0.977 |
 | + cross-encoder, half 1 only (scored on H2) | 0.9825 | 0.98744 (H2) | 0.98958 | 0.98425 | 0.99367 | 0.981 |
-| + cross-encoder, both halves | 0.9825 | **0.98765** | 0.98971 | 0.98456 | 0.99374 | [FINAL] |
+| + cross-encoder, both halves | 0.9825 | **0.98765** | 0.98971 | 0.98456 | 0.99374 | 0.980518 |
+| blend with QTpies M5, weight 0.5, France k 0.184 (live S1 OOF) | 0.9825* | 0.99032 | 0.99049 | 0.99007 | 0.99372 | 0.985131 |
+| **final: blend with QTpies M10, partner weight 0.7, France k 0.432 (live S1 OOF)** | 0.9825* | **0.99070** | 0.99091 | 0.99039 | 0.99444 | **0.986456** |
+
+\* Our candidate set. The blend adds the partner's candidates (union, +634,542 test pairs).
 
 Fold standard deviation of the final OOF: 0.00007.
 
-- **F_0.5 Score (macro):** 0.98765 OOF [FINAL]; public 0.981 [FINAL].
+- **F_0.5 Score (macro):** final 0.99070 OOF (live S1; our pipeline alone 0.98765 on all train S1); **public 0.986456**.
 
 ### 5.3 Unseen-country findings (LOCO)
 
@@ -411,7 +426,10 @@ gains better than in-distribution OOF did.
   the sorted `.py` files `4594535af76c` = the M8 kernel; it also reruns M5's steps), `kaggle_runner.py`, `AUDIT.md`
   and its REPRODUCE files.
 
-**Reproducibility:** on Sunday, a clean-room run regenerated the final file from the frozen tag: a fresh clone, a fresh
+**Reproducibility:** the final file (md5 `d754f06f8800aa5516a2a67d7a1ab2e4`) was produced on this machine inside the
+clean room. We re-ran the `blend` stage on the clean-room predictions with the M10 inputs and the final config
+(`blend.w` 0.3, `blend.unseen_k: auto`), which is tag `freeze-2026-09-27c`; the pipeline code is unchanged since the
+freeze. The clean-room run itself came from the frozen tag: a fresh clone, a fresh
 environment from `requirements.txt`, the dataset, and the shipped inputs. Result: our model's OOF was 0.98766 (reference 0.98765), and the blend OOF 0.99032 equals the reference. The union
 candidate set was byte-identical. The rebuilt base file (md5 `9c36a54bbc48d3e17aead96eafc0fe02`) differs from the
 reference upload `blend_cal` (md5 `0a0b14806bcddf3370258467ae3fddd9`, public 0.985131) on 3,451 of 1,732,544 S1
@@ -431,5 +449,17 @@ provided training data only.
 
 ### B. Additional Results
 
-[FINAL: per-country test statistics of the final file (empty share, mean matches), LOCO tables, feature importance
-top 20 from `work/reports/importance_<model>.tsv`.]
+**Final file** (`output/matching_results.tsv`, md5 `d754f06f8800aa5516a2a67d7a1ab2e4`):
+
+| country | S1 | France k | empty share | links per S1 |
+|---|---|---|---|---|
+| US | 663,106 | 1 | 5.76% | 3.392 |
+| India | 809,986 | 1 | 5.80% | 3.373 |
+| France | 259,452 | 0.432 | 5.93% | 3.197 |
+
+**Round-2 feature importance** (clean-room `lgbm2_ce`, mean gain / 1e6 over 5 folds, top 20): ce_p 17.48, p1 14.90,
+p_share_rec 0.46, p_rank_rec 0.43, n_s1_c50_rec 0.16, fw_margin_rec 0.11, sib_w_other_rec 0.11, hn_absdiff_log 0.10,
+p_other_rec 0.09, sib_addr_max 0.06, adnl_tset 0.05, p_sum_s1_other 0.05, sib_addr_eq 0.04, hn_suffix 0.04, hn_reldiff
+0.04, f_s1_name_share 0.03, n_s1_c80_other 0.02, p_other_s1 0.02, sib_wmax 0.02, hn_in_other 0.02.
+
+**LOCO tables:** section 5.3 and `docs/LOCO_ERRORS.md` / `docs/HAILMARY.md` in the repository.
