@@ -12,21 +12,21 @@ C=student_resource/code/business_entity_resolution
   { echo "uncommitted changes in code or doc: commit first (zip must match a commit)"; exit 1; }
 ST=student_resource/work/zipstage
 rm -rf "$ST"; mkdir -p "$ST/output"
-git archive HEAD "$C/src" "$C/README.md" $(git ls-files "$C/requirements*.txt") | tar -x -C "$ST"  # all env files (ours + partner)
-mv "$ST/student_resource/code" "$ST/code"; rmdir "$ST/student_resource"
+REF=${REF:-HEAD}  # REF=<tag> archives that exact commit
+git archive "$REF" "$C/src" "$C/README.md" $(git ls-tree -r --name-only "$REF" -- "$C" | grep "^$C/requirements.*\.txt$") "student_resource/Documentation_template.md" | tar -x -C "$ST"  # all env files (ours + partner)
+mv "$ST/student_resource/code" "$ST/code"; mv "$ST/student_resource/Documentation_template.md" "$ST/"; rmdir "$ST/student_resource"
 # CE scores are inputs (made on Kaggle GPUs, gitignored parquet): ship them if this build uses them
-[ -d "$C/src/ce_scores" ] && mkdir -p "$ST/code/business_entity_resolution/src/ce_scores" && cp "$C"/src/ce_scores/ce_scores_*.parquet "$ST/code/business_entity_resolution/src/ce_scores/"  # CE1 only (CE2 not used)
+[ -d "$C/src/ce_scores" ] && mkdir -p "$ST/code/business_entity_resolution/src/ce_scores" && cp -l "$C"/src/ce_scores/ce_scores_*.parquet "$ST/code/business_entity_resolution/src/ce_scores/"  # CE1 only (CE2 not used)
 # blend partner's stage-2 preds + id maps (gitignored parquet inputs); README/REPRODUCE come with git archive
-[ -e "$C/src/razan/oof_s2ce.parquet" ] && cp -r "$C/src/razan/"*.parquet "$C/src/razan/ids" "$ST/code/business_entity_resolution/src/razan/"
+[ -e "$C/src/razan/oof_s2ce.parquet" ] && cp -rl "$C/src/razan/"*.parquet "$C/src/razan/ids" "$ST/code/business_entity_resolution/src/razan/"
 # fuse inputs of the final (M9 / M11h / M12h p, QTpies norm/, fixed SOLO and blend files; gitignored data)
-[ -d "$C/src/razan/fuse" ] && cp -r "$C/src/razan/fuse" "$ST/code/business_entity_resolution/src/razan/"
+[ -d "$C/src/razan/fuse" ] && cp -rlf "$C/src/razan/fuse" "$ST/code/business_entity_resolution/src/razan/"
 ln "$MATCH" "$ST/output/matching_results.tsv"
 # candidates must be the set the matches were decoded from: the one next to the matching file if present (blend = union)
 CAND=$(dirname "$MATCH")/candidate_pairs.tsv
 [ -e "$CAND" ] || CAND=student_resource/output/candidate_pairs.tsv
 echo "candidates from: $CAND"
 ln "$CAND" "$ST/output/candidate_pairs.tsv"
-cp student_resource/Documentation_template.md "$ST/"
 # refuse anything that looks like a secret or a cache
 bad=$(find "$ST" \( -name '.env' -o -name 'kaggle.json' -o -name '*.pem' -o -name '__pycache__' -o -name '.pytest_cache' -o -name '.venv' \) -print)
 [ -z "$bad" ] || { echo "refusing, found: $bad"; exit 1; }
@@ -46,4 +46,4 @@ for d in sorted(dirs):
     print(f"{d or '.'}/  ({len(dirs[d])} files)" + ("" if len(dirs[d]) > 6 else ": " + ", ".join(dirs[d])))
 print("matching_results.tsv md5 in zip:", hashlib.md5(z.read("output/matching_results.tsv")).hexdigest())
 EOF
-echo "commit $(git rev-parse --short HEAD); $(du -h "$OUT" | cut -f1) $OUT"
+echo "commit $(git rev-parse --short "$REF") ($REF); $(du -h "$OUT" | cut -f1) $OUT"

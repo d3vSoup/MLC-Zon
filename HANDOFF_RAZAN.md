@@ -72,13 +72,13 @@ FINAL 2 already has the best known component in every country.
   - names2c, CE2, the format-feature drop (all failed their gates).
 
 ## Zip status
-- **Verified:** `QTpies_submission.zip` = tag `freeze-2026-09-27e` (output #34), 2,581,827,078 bytes, md5
+- **Verified:** `QTpies_submission_27e_fuse34.zip` (renamed) = tag `freeze-2026-09-27e` (output #34), 2,581,827,078 bytes, md5
   `0dd30abc9c6137e53f0a013a9860afdf`. `QTpies_submission_w07_27c.zip` = tag 27c (output w0.7), md5
   `9c6798a9f1c929644fbbd11f58b1fe7e`.
-- **Pending:** the 27f zip (output FINAL 2; Documentation [FINAL] = FINAL 2). Build it with
-  `tools/make_zip.sh QTpies ../MLC-Zon-fuse-staged/out_final2/matching_results.tsv` from tag 27f (the union
-  `candidate_pairs.tsv` is hard-linked next to that file). It is blocked tonight by disk (needs ~2.6 GB; 8 GB floor).
-  It differs from 27e only in `output/matching_results.tsv` and the Documentation.
+- **Built and verified (21:25):** `QTpies_submission.zip` = tag `freeze-2026-09-27f`, output = FINAL 2, 2,581,824,811
+  bytes, md5 `47d9faa6af680c6e5aebc20549a9ec7e`. It is CRC-identical to the verified 27e zip except
+  `output/matching_results.tsv` and the Documentation. The 27e zip was renamed `QTpies_submission_27e_fuse34.zip`
+  (unchanged, md5 `0dd30abc…`).
 
 ## Rules
 (Muaz mentioned "rules below", but none came with the message; these are the standing ones.)

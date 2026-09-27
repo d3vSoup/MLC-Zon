@@ -1,3 +1,10 @@
+**27f ZIP READY (21:25): `QTpies_submission.zip` = tag freeze-2026-09-27f, output = FINAL 2 (50c695de, public 0.986758),
+2,581,824,811 bytes, md5 47d9faa6af680c6e5aebc20549a9ec7e.** Verified: 129 entries; CRC-identical to the fully verified
+27e zip except output/matching_results.tsv (-> FINAL 2) and Documentation_template.md (= tag 27f); zip testzip OK;
+candidates = union 5021548f; validator PASS + --check-ids; no secrets/caches. FINAL 2 regenerates from these contents
+(proven on the 27e zip; code + inputs CRC-identical). Kept: 27e zip renamed QTpies_submission_27e_fuse34.zip (0dd30abc),
+27c QTpies_submission_w07_27c.zip (9c6798a9). ~/Downloads/for_razan_m11.zip deleted (folder kept).
+
 ## LIVE (newest first)
 **Night 2 (21:20): no candidate passes the gate; FINAL 2 stays final. See [NIGHT2.md](NIGHT2.md).**
 
