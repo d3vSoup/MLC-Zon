@@ -6,6 +6,7 @@ candidates = union 5021548f; validator PASS + --check-ids; no secrets/caches. FI
 27c QTpies_submission_w07_27c.zip (9c6798a9). ~/Downloads/for_razan_m11.zip deleted (folder kept).
 
 ## LIVE (newest first)
+- 22:10 Razan request: clean room M10 blend (blend.w 0.3, asis, unseen_k auto, extra_k [0.6, 1.0]). blend_cal = d754f06f (same base, confirmed). France k 0.6: c523954d3a2d796d4b34d66bccec26a4 (FR empty 5.79%, links/S1 3.220); k 1: dbdf9215bf4dd31c7dda4e04b1f4342b (= blend_raw; FR 5.58% / 3.264). Both PASS + --check-ids + subset of union. Copies: ~/Downloads/night2_m10_k0.6/, night2_m10_k1/.
 **Night 2 (21:20): no candidate passes the gate; FINAL 2 stays final. See [NIGHT2.md](NIGHT2.md).**
 
 - 21:05 FINAL2 public 0.986758 = best AND last. 27f: Documentation FINAL = FINAL2 committed + tagged; zip build waits for disk (6.6 GB free < 8 GB floor). Night-2 Phase 1: country decomposition shows FINAL2 already = best known France (#34) + best US/IN (#35); diagnostics do not predict public deltas (conflicting signs).
