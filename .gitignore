@@ -1,0 +1,12 @@
+.claude/
+__pycache__/
+.ruff_cache/
+.env
+kaggle.json
+*.zip
+*.parquet
+*.lgb
+dataset/
+student_resource/
+work/
+output/candidate_pairs.tsv
