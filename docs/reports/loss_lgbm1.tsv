@@ -1,4 +1,0 @@
-country	singleton_fp	missed_entity	wrong_top1	blocking_miss	extra_fp	extra_fn	loss_per_S1
-India	8.1	12.0	0.3	35.9	16.8	27.0	0.0276
-US	7.4	17.3	0.4	15.8	17.2	41.9	0.0203
-overall	7.7	14.8	0.3	25.3	17.0	34.8	0.0232
